@@ -1,7 +1,7 @@
-CC = gcc
-LDFLAGS := -lxdma
-CFLAGS := -c -Wall
-INCLUDES := -I. -I../dev
+CC = arm-xilinx-linux-gnueabi-gcc
+LDFLAGS := -L../lib -lxdma
+CFLAGS := -c -Wall -g -O0
+INCLUDES := -I. -I../dev -I../lib
 
 EXECUTABLE = \
 	app \
