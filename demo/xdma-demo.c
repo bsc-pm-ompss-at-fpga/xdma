@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 
 	/* mmap the file to get access to the memory area.
 	 */
-	map = mmap(0, FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	map = mmap(0, 2*LENGTH, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (map == MAP_FAILED) {
 		close(fd);
 		perror("Error mmapping the file");
