@@ -36,8 +36,8 @@ int main(int argc, char *argv[])
 	dst[LENGTH - 1] = '\n';
 
 	printf("test: dst buffer before transmit:\n");
-	for (i = 0; i < 10; i++) {
-		printf("%c\t", dst[i]);
+	for (i = 0; i < 50; i++) {
+		printf("%c", dst[i]);
 	}
 	printf("\n");
 
@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
 	}
 
 	printf("test: dst buffer after transmit:\n");
-	for (i = 0; i < 10; i++) {
-		printf("%c\t", dst[i]);
+	for (i = 0; i < 50; i++) {
+		printf("%c", dst[i]);
 	}
 	printf("\n");
 

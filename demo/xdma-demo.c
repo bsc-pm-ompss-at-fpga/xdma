@@ -64,8 +64,8 @@ int main(int argc, char *argv[])
 	map[LENGTH - 1] = '\n';
 
 	printf("test: rx buffer before transmit:\n");
-	for (i = 0; i < 10; i++) {
-		printf("%c\t", map[i]);
+	for (i = 0; i < 50; i++) {
+		printf("%c", map[i]);
 	}
 	printf("\n");
 
@@ -166,8 +166,8 @@ int main(int argc, char *argv[])
 	printf("config tx trans\n");
 
 	printf("test: rx buffer after transmit:\n");
-	for (i = 0; i < 10; i++) {
-		printf("%c\t", map[i]);
+	for (i = 0; i < 50; i++) {
+		printf("%c", map[i]);
 	}
 	printf("\n");
 
