@@ -5,10 +5,16 @@
 
 int main(int argc, char *argv[])
 {
-	const int LENGTH = 1025;
+	int LENGTH = 1025;
 	int i;
 	uint32_t *src;
 	uint32_t *dst;
+
+    if (argc > 1) {
+        LENGTH = atoi(argv[1]);
+    } else {
+        fprintf(stderr, "Usage: %s <num of 4-byte elements to transfer> defaulting to %d\n", argv[0], LENGTH);
+    }
 
 	if (xdma_init() < 0) {
 		exit(EXIT_FAILURE);

@@ -18,7 +18,12 @@
 
 int main(int argc, char *argv[])
 {
-	const int LENGTH = 1024;
+	int LENGTH = 1024;
+    if (argc > 1) {
+        LENGTH = atoi(argv[1]);
+    } else {
+        fprintf(stderr, "Usage: %s <num of bytes to transfer> defaulting to %d\n", argv[0], LENGTH);
+    }
 	int i;
 	int fd;
 	char *map;		/* mmapped array of char's */
