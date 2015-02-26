@@ -6,7 +6,8 @@ INCLUDES := -I. -I../dev -I../lib
 EXECUTABLE = \
 	app \
 	demo \
-	test
+	test \
+	len-test
 
 
 .PHONY : all
@@ -22,6 +23,9 @@ demo : xdma-demo.o
 
 
 app : xdma-app.o
+	$(CC) $< -o $@ $(LDFLAGS)
+
+len-test : xdma-len-test.o
 	$(CC) $< -o $@ $(LDFLAGS)
 
 

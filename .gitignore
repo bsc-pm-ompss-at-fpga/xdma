@@ -4,6 +4,7 @@
 demo/app
 demo/demo
 demo/test
+demo/len-test
 *.o
 *.so
 *.symvers
