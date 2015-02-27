@@ -17,6 +17,102 @@
 #define MAP_SIZE  (4000)
 #define FILESIZE (MAP_SIZE * sizeof(char))
 
+
+int performTransfers(const int fd, const struct xdma_dev dev, const int LENGTH) {
+
+    struct xdma_chan_cfg rx_config;
+    rx_config.chan = dev.rx_chan;
+    rx_config.dir = XDMA_DEV_TO_MEM;
+    rx_config.coalesc = 1;
+    rx_config.delay = 0;
+    rx_config.reset = 0;
+    if (ioctl(fd, XDMA_DEVICE_CONTROL, &rx_config) < 0) {
+        perror("Error ioctl config rx chan");
+        return -1;
+    }
+
+    struct xdma_chan_cfg tx_config;
+    tx_config.chan = dev.tx_chan;
+    tx_config.dir = XDMA_MEM_TO_DEV;
+    tx_config.coalesc = 1;
+    tx_config.delay = 0;
+    tx_config.reset = 0;
+    if (ioctl(fd, XDMA_DEVICE_CONTROL, &tx_config) < 0) {
+        perror("Error ioctl config tx chan");
+        return -1;
+    }
+
+    struct xdma_buf_info rx_buf;
+    rx_buf.chan = dev.rx_chan;
+    rx_buf.completion = dev.rx_cmp;
+    rx_buf.cookie = (u32) NULL;
+    rx_buf.buf_offset = (u32) 0;
+    rx_buf.buf_size = (u32) LENGTH;
+    rx_buf.dir = XDMA_DEV_TO_MEM;
+    if (ioctl(fd, XDMA_PREP_BUF, &rx_buf) < 0) {
+        perror("Error ioctl set rx buf");
+        return -1;
+    }
+
+    struct xdma_buf_info tx_buf;
+    tx_buf.chan = dev.tx_chan;
+    tx_buf.completion = dev.tx_cmp;
+    tx_buf.cookie = (u32) NULL;
+    tx_buf.buf_offset = (u32) LENGTH;
+    tx_buf.buf_size = (u32) LENGTH;
+    tx_buf.dir = XDMA_MEM_TO_DEV;
+    if (ioctl(fd, XDMA_PREP_BUF, &tx_buf) < 0) {
+        perror("Error ioctl set tx buf");
+        return -1;
+    }
+
+    struct xdma_transfer rx_trans;
+    rx_trans.chan = dev.rx_chan;
+    rx_trans.completion = dev.rx_cmp;
+    rx_trans.cookie = rx_buf.cookie;
+    rx_trans.wait = 0;
+    if (ioctl(fd, XDMA_START_TRANSFER, &rx_trans) < 0) {
+        perror("Error ioctl start rx trans");
+        return -1;
+    }
+
+    struct xdma_transfer tx_trans;
+    tx_trans.chan = dev.tx_chan;
+    tx_trans.completion = dev.tx_cmp;
+    tx_trans.cookie = tx_buf.cookie;
+    tx_trans.wait = 0;
+    if (ioctl(fd, XDMA_START_TRANSFER, &tx_trans) < 0) {
+        perror("Error ioctl start tx trans");
+        return -1;
+    }
+    return 0;
+}
+
+/*  Returns the number of devices
+ *  -1 if error
+ */
+int getNumDevices(int fd) {
+    int numDevices = 0;
+    if (ioctl(fd, XDMA_GET_NUM_DEVICES, &numDevices) < 0) {
+        perror("Error ioctl getting device num");
+        return -1;
+    }
+    return numDevices;
+}
+
+int getDeviceInfo(int fd, int deviceId, struct xdma_dev *devInfo) {
+    devInfo->tx_chan = (u32) NULL;
+    devInfo->tx_cmp = (u32) NULL;
+    devInfo->rx_chan = (u32) NULL;
+    devInfo->rx_cmp = (u32) NULL;
+    devInfo->device_id = deviceId;
+    if (ioctl(fd, XDMA_GET_DEV_INFO, devInfo) < 0) {
+        perror("Error ioctl getting device info");
+        return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     int LENGTH = 1024;
@@ -66,98 +162,16 @@ int main(int argc, char *argv[])
         map[i] = 'C';
     }
 
-    /* Query driver for number of devices.
-    */
-    int num_devices = 0;
-    if (ioctl(fd, XDMA_GET_NUM_DEVICES, &num_devices) < 0) {
-        perror("Error ioctl getting device num");
-        exit(EXIT_FAILURE);
-    }
-
-    /* Query driver for number of devices.
-    */
     struct xdma_dev dev;
-    dev.tx_chan = (u32) NULL;
-    dev.tx_cmp = (u32) NULL;
-    dev.rx_chan = (u32) NULL;
-    dev.rx_cmp = (u32) NULL;
-    dev.device_id = num_devices - 1;
-    if (ioctl(fd, XDMA_GET_DEV_INFO, &dev) < 0) {
-        perror("Error ioctl getting device info");
-        exit(EXIT_FAILURE);
-    }
-    //	printf("devices tx chan: %x, tx cmp:%x, rx chan: %x, rx cmp: %x\n",
-    //	       dev.tx_chan, dev.tx_cmp, dev.rx_chan, dev.rx_cmp);
-
-    struct xdma_chan_cfg rx_config;
-    rx_config.chan = dev.rx_chan;
-    rx_config.dir = XDMA_DEV_TO_MEM;
-    rx_config.coalesc = 1;
-    rx_config.delay = 0;
-    rx_config.reset = 0;
-    if (ioctl(fd, XDMA_DEVICE_CONTROL, &rx_config) < 0) {
-        perror("Error ioctl config rx chan");
-        exit(EXIT_FAILURE);
-    }
-
-    struct xdma_chan_cfg tx_config;
-    tx_config.chan = dev.tx_chan;
-    tx_config.dir = XDMA_MEM_TO_DEV;
-    tx_config.coalesc = 1;
-    tx_config.delay = 0;
-    tx_config.reset = 0;
-    if (ioctl(fd, XDMA_DEVICE_CONTROL, &tx_config) < 0) {
-        perror("Error ioctl config tx chan");
-        exit(EXIT_FAILURE);
-    }
-
-    struct xdma_buf_info rx_buf;
-    rx_buf.chan = dev.rx_chan;
-    rx_buf.completion = dev.rx_cmp;
-    rx_buf.cookie = (u32) NULL;
-    rx_buf.buf_offset = (u32) 0;
-    rx_buf.buf_size = (u32) LENGTH;
-    rx_buf.dir = XDMA_DEV_TO_MEM;
-    if (ioctl(fd, XDMA_PREP_BUF, &rx_buf) < 0) {
-        perror("Error ioctl set rx buf");
-        exit(EXIT_FAILURE);
-    }
-
-    struct xdma_buf_info tx_buf;
-    tx_buf.chan = dev.tx_chan;
-    tx_buf.completion = dev.tx_cmp;
-    tx_buf.cookie = (u32) NULL;
-    tx_buf.buf_offset = (u32) LENGTH;
-    tx_buf.buf_size = (u32) LENGTH;
-    tx_buf.dir = XDMA_MEM_TO_DEV;
-    if (ioctl(fd, XDMA_PREP_BUF, &tx_buf) < 0) {
-        perror("Error ioctl set tx buf");
-        exit(EXIT_FAILURE);
-    }
-
-    struct xdma_transfer rx_trans;
-    rx_trans.chan = dev.rx_chan;
-    rx_trans.completion = dev.rx_cmp;
-    rx_trans.cookie = rx_buf.cookie;
-    rx_trans.wait = 0;
-    if (ioctl(fd, XDMA_START_TRANSFER, &rx_trans) < 0) {
-        perror("Error ioctl start rx trans");
-        exit(EXIT_FAILURE);
-    }
-
-    struct xdma_transfer tx_trans;
-    tx_trans.chan = dev.tx_chan;
-    tx_trans.completion = dev.tx_cmp;
-    tx_trans.cookie = tx_buf.cookie;
-    tx_trans.wait = 0;
-    if (ioctl(fd, XDMA_START_TRANSFER, &tx_trans) < 0) {
-        perror("Error ioctl start tx trans");
-        exit(EXIT_FAILURE);
-    }
+    int ndevs;
+    ndevs = getNumDevices(fd);
+    getDeviceInfo(fd, ndevs-1, &dev);
+    performTransfers(fd, dev, LENGTH);
 
     //Validate results
 
     int errors = 0;
+    usleep(5000); //5ms
     result = map;
     for (i=0; i<LENGTH; i++) {
         if (result[i] != 'D') { //rx buffer
