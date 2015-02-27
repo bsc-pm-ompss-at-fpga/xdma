@@ -121,6 +121,7 @@ int main(int argc, char *argv[])
         iter = atoi(argv[2]);
     } else {
         fprintf(stderr, "Usage: %s <num of bytes to transfer> <iterations>", argv[0]);
+        return -2;
     }
     int i,j;
     int fd;
