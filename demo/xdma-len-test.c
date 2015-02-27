@@ -115,16 +115,18 @@ int getDeviceInfo(int fd, int deviceId, struct xdma_dev *devInfo) {
 
 int main(int argc, char *argv[])
 {
-    int LENGTH = 1024;
-    if (argc > 1) {
+    int LENGTH, iter;
+    if (argc > 2) {
         LENGTH = atoi(argv[1]);
+        iter = atoi(argv[2]);
     } else {
-        fprintf(stderr, "Usage: %s <num of bytes to transfer> defaulting to %d\n", argv[0], LENGTH);
+        fprintf(stderr, "Usage: %s <num of bytes to transfer> <iterations>", argv[0]);
     }
-    int i;
+    int i,j;
     int fd;
     char *map;		/* mmapped array of char's */
     char *result;
+    int status = 0;
 
     result = (char*)malloc(LENGTH*sizeof(char));
 
@@ -150,43 +152,42 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /* Now write int's to the file as if it were memory (an array of ints).
-    */
-    // fill tx with a value
-    for (i = 0; i < LENGTH; i++) {
-        map[LENGTH + i] = 'D';
-    }
-
-    // fill rx with a value
-    for (i = 0; i < LENGTH; i++) {
-        map[i] = 'C';
-    }
-
-    struct xdma_dev dev;
-    int ndevs;
-    ndevs = getNumDevices(fd);
-    getDeviceInfo(fd, ndevs-1, &dev);
-    performTransfers(fd, dev, LENGTH);
-
-    //Validate results
-
-    int errors = 0;
-    usleep(5000); //5ms
-    result = map;
-    for (i=0; i<LENGTH; i++) {
-        if (result[i] != 'D') { //rx buffer
-            errors++;
-            fprintf(stderr, "[%d]: %c\n", i, result[i]);
+    for (j=0; j<iter; j++) {
+        /* Now write int's to the file as if it were memory (an array of ints).
+        */
+        // fill tx with a value
+        for (i = 0; i < LENGTH; i++) {
+            map[LENGTH + i] = 'D';
         }
-    }
-    int status;
-    if (errors) {
-        printf("FAIL\n");
-        fprintf(stderr, "Test failed. %d errors found\n", errors);
-        status = -1;
-    } else {
-        printf("PASS\n");
-        status = 0;
+
+        // fill rx with a value
+        for (i = 0; i < LENGTH; i++) {
+            map[i] = 'C';
+        }
+
+        struct xdma_dev dev;
+        int ndevs;
+        ndevs = getNumDevices(fd);
+        getDeviceInfo(fd, ndevs-1, &dev);
+        performTransfers(fd, dev, LENGTH);
+
+        //Validate results
+
+        int errors = 0;
+        usleep(5000); //5ms
+        result = map;
+        for (i=0; i<LENGTH; i++) {
+            if (result[i] != 'D') { //rx buffer
+                if (errors < 10)
+                    fprintf(stderr, "[%d]: %c\n", i, result[i]);
+                errors++;
+            }
+        }
+        if (errors) {
+            fprintf(stderr, "Iteration %d failed with %d errors\n", j, errors);
+            status = -1;
+        }
+
     }
 
     /* Don't forget to free the mmapped memory
@@ -197,6 +198,12 @@ int main(int argc, char *argv[])
     }
     /* Un-mmaping doesn't close the file, so we still need to do that.  */
     close(fd);
+
+    if (status) {
+        printf("FAIL\n");
+    } else {
+        printf("PASS\n");
+    }
 
     return status;
 }
