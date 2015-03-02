@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
         LENGTH = atoi(argv[1]);
         iter = atoi(argv[2]);
     } else {
-        fprintf(stderr, "Usage: %s <num of bytes to transfer> <iterations>", argv[0]);
+        fprintf(stderr, "Usage: %s <num of bytes to transfer> <iterations>\n", argv[0]);
         return -2;
     }
     int i,j;
