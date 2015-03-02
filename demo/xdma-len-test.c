@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
         //Validate results
 
         int errors = 0;
-        usleep(5000); //5ms
+        usleep(1);
         result = map;
         for (i=0; i<LENGTH; i++) {
             if (result[i] != 'D') { //rx buffer
