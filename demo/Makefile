@@ -7,7 +7,8 @@ EXECUTABLE = \
 	app \
 	demo \
 	test \
-	len-test
+	len-test \
+	gen-task
 
 
 .PHONY : all
@@ -26,6 +27,9 @@ app : xdma-app.o
 	$(CC) $< -o $@ $(LDFLAGS)
 
 len-test : xdma-len-test.o
+	$(CC) $< -o $@ $(LDFLAGS)
+
+gen-task : xdma-gen-task.o
 	$(CC) $< -o $@ $(LDFLAGS)
 
 

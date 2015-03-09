@@ -5,6 +5,7 @@ demo/app
 demo/demo
 demo/test
 demo/len-test
+demo/gen-task
 *.o
 *.so
 *.symvers
