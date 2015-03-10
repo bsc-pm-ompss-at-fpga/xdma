@@ -75,17 +75,6 @@ int performTransfers(const int fd, const struct xdma_dev dev,
         return -1;
     }
 
-    //start output transfer dev->host
-    struct xdma_transfer rx_trans;
-    rx_trans.chan = dev.rx_chan;
-    rx_trans.completion = dev.rx_cmp;
-    rx_trans.cookie = rx_buf.cookie;
-    rx_trans.wait = 0;
-    if (ioctl(fd, XDMA_START_TRANSFER, &rx_trans) < 0) {
-        perror("Error ioctl start rx trans");
-        return -1;
-    }
-
     //start input transfer host->dev
     struct xdma_transfer tx_trans;
     tx_trans.chan = dev.tx_chan;
@@ -94,6 +83,17 @@ int performTransfers(const int fd, const struct xdma_dev dev,
     tx_trans.wait = 0;
     if (ioctl(fd, XDMA_START_TRANSFER, &tx_trans) < 0) {
         perror("Error ioctl start tx trans");
+        return -1;
+    }
+
+    //start output transfer dev->host
+    struct xdma_transfer rx_trans;
+    rx_trans.chan = dev.rx_chan;
+    rx_trans.completion = dev.rx_cmp;
+    rx_trans.cookie = rx_buf.cookie;
+    rx_trans.wait = 0;
+    if (ioctl(fd, XDMA_START_TRANSFER, &rx_trans) < 0) {
+        perror("Error ioctl start rx trans");
         return -1;
     }
 
