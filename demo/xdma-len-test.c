@@ -87,12 +87,12 @@ int performTransfers(const int fd, const struct xdma_dev dev, const int LENGTH) 
     }
 
     int err;
-    err =ioctl(fd, XDMA_FINISHED_TRANSFER, &tx_trans);
-    if (err <= 0) {
+    err =ioctl(fd, XDMA_FINISH_TRANSFER, &tx_trans);
+    if (err < 0) {
         perror("Error waiting for output transfer\n");
     }
-    err =ioctl(fd, XDMA_FINISHED_TRANSFER, &rx_trans);
-    if (err <= 0) {
+    err =ioctl(fd, XDMA_FINISH_TRANSFER, &rx_trans);
+    if (err < 0) {
         perror("Error waiting for input transfer\n");
     }
 
