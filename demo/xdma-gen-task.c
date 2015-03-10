@@ -13,6 +13,8 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 
+#include "timing.h"
+
 #define FILEPATH "/dev/xdma"
 //#define MAP_SIZE  (4000)
 //#define FILESIZE (MAP_SIZE * sizeof(char))
@@ -136,13 +138,17 @@ int getDeviceInfo(int fd, int deviceId, struct xdma_dev *devInfo) {
 
 int main(int argc, char *argv[])
 {
-    int LENGTH, iter, wait;
-    if (argc > 2) {
-        LENGTH = atoi(argv[1]);
+    int iter, wait;
+    int inLen, outLen;
+    if (argc > 4) {
+        inLen = atoi(argv[1]);
         wait = atoi(argv[2]);
-        iter = atoi(argv[3]);
+        outLen = atoi(argv[3]);
+        iter = atoi(argv[4]);
     } else {
-        fprintf(stderr, "Usage: %s <num of bytes to transfer> <wait cycles> <iterations>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <in data> <wait cycles> <out data> <iterations>\n"
+                "in/out/data is specified in 4-byte elements\n"
+                , argv[0]);
         return -2;
     }
     int i,j;
@@ -168,7 +174,7 @@ int main(int argc, char *argv[])
     /*
      * Mapped length = in_len, wait, out_len. data_in, waited out data out
      */
-    int mapLen = (2*LENGTH + 4)*sizeof(int);
+    int mapLen = (inLen + outLen + 4)*sizeof(int);
     map = mmap(0, mapLen, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map == MAP_FAILED) {
         close(fd);
@@ -177,11 +183,11 @@ int main(int argc, char *argv[])
     }
 
     int *dataIn, *dataOut, *waited;
-    map[0] = LENGTH;    //in_len
+    map[0] = inLen;    //in_len
     map[1] = wait;      //wait cycles
-    map[2] = LENGTH;    //out_len
+    map[2] = outLen;    //out_len
     dataIn = &map[3];
-    waited = dataIn + LENGTH;
+    waited = dataIn + inLen;
     dataOut = waited + 1;
 
 
@@ -189,12 +195,12 @@ int main(int argc, char *argv[])
         /* Now write int's to the file as if it were memory (an array of ints).
         */
         // fill tx (input) with a value
-        for (i = 0; i < LENGTH; i++) {
+        for (i = 0; i < inLen; i++) {
             dataIn[i] = IN_VAL;
         }
 
         // fill rx (output) with a value
-        for (i = 0; i < LENGTH; i++) {
+        for (i = 0; i < outLen; i++) {
             dataOut[i] = -1;
         }
 
@@ -204,13 +210,11 @@ int main(int argc, char *argv[])
         getDeviceInfo(fd, ndevs-1, &dev);
         //Perform transfers (fd, dev, in_len, in_offset, out_len, out_offset)
         performTransfers(fd, dev,
-                (LENGTH + 3)*sizeof(int), 0,    //3->in_len, wait, out_len
-                (LENGTH + 1)*sizeof(int), (LENGTH + 3)*sizeof(int)
+                (inLen + 3)*sizeof(int), 0,    //3->in_len, wait, out_len
+                (outLen + 1)*sizeof(int), (inLen + 3)*sizeof(int)
                 );
 
         //Validate results
-        usleep(1);
-
         int errors = 0;
             //check for waited cycles
         if (*waited != wait) {
@@ -218,7 +222,7 @@ int main(int argc, char *argv[])
             status = 1;
         }
         //check for output
-        for (i=0; i<LENGTH; i++) {
+        for (i=0; i<outLen; i++) {
             if (dataOut[i] != OUT_VAL) {
                 errors++;
                 fprintf(stderr, "Error output[%d] %x != %x\n", i, (unsigned int)dataOut[i], OUT_VAL);
