@@ -85,6 +85,17 @@ int performTransfers(const int fd, const struct xdma_dev dev, const int LENGTH) 
         perror("Error ioctl start tx trans");
         return -1;
     }
+
+    int err;
+    err =ioctl(fd, XDMA_FINISHED_TRANSFER, &tx_trans);
+    if (err <= 0) {
+        perror("Error waiting for output transfer\n");
+    }
+    err =ioctl(fd, XDMA_FINISHED_TRANSFER, &rx_trans);
+    if (err <= 0) {
+        perror("Error waiting for input transfer\n");
+    }
+
     return 0;
 }
 
@@ -175,7 +186,6 @@ int main(int argc, char *argv[])
         //Validate results
 
         int errors = 0;
-        usleep(1);
         result = map;
         for (i=0; i<LENGTH; i++) {
             if (result[i] != 'D') { //rx buffer
