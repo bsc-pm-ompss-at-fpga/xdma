@@ -235,6 +235,36 @@ static int xdma_start_transfer(struct xdma_transfer *trans)
 	return ret;
 }
 
+static int xdma_finish_transfer(struct xdma_transfer *trans) {
+
+	//TODO: allow this to be non-blocking in order to get the transfer status
+	int ret = 0;
+	unsigned long tmo = msecs_to_jiffies(3000);
+	enum dma_status status;
+	struct dma_chan *chan;
+	struct completion *cmp;
+	dma_cookie_t cookie;
+
+	chan = (struct dma_chan *)trans->chan;
+	cmp = (struct completion *)trans->completion;
+	cookie = trans->cookie;
+
+	tmo = wait_for_completion_timeout(cmp, tmo);
+	status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
+	if (0 == tmo) {
+		printk(KERN_ERR "<%s> Error: transfer timed out\n",
+				MODULE_NAME);
+		ret = -1;
+	} else if (status != DMA_COMPLETE) {
+		printk(KERN_DEBUG
+				"<%s> transfer: returned completion callback status of: \'%s\'\n",
+				MODULE_NAME,
+				status == DMA_ERROR ? "error" : "in progress");
+		ret = -1;
+	}
+	return ret;
+}
+
 static void xdma_stop_transfer(struct dma_chan *chan)
 {
 	struct dma_device *chan_dev;
@@ -432,7 +462,17 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		xdma_test_transfer();
 		break;
+    case XDMA_FINISH_TRANSFER:
+        printk(KERN_DEBUG "<%s> ioctl: XDMA_FINISHED_TRANSFER\n",
+                MODULE_NAME);
+		if (copy_from_user((void *)&trans,
+				   (const void __user *)arg,
+				   sizeof(struct xdma_transfer)))
+			return -EFAULT;
+        ret = xdma_finish_transfer(&trans);
+        break;
 	default:
+        printk(KERN_DEBUG "<%s> ioctl: WARNING unknown ioctl command %d\n", MODULE_NAME, cmd);
 		break;
 	}
 
