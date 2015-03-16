@@ -12,8 +12,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
-
-#include "timing.h"
+#include <sys/time.h>
 
 #define FILEPATH "/dev/xdma"
 //#define MAP_SIZE  (4000)
@@ -21,6 +20,12 @@
 
 #define IN_VAL      0xC0FFEE
 #define OUT_VAL     0xDEADBEEF
+
+static inline double getSec() {
+        static struct timeval time;
+        gettimeofday(&time, 0);
+        return ((double)time.tv_sec + (double)time.tv_usec/(double)1e6);
+}
 
 int performTransfers(const int fd, const struct xdma_dev dev,
         const int in_len, const int in_offset,
@@ -190,6 +195,7 @@ int main(int argc, char *argv[])
     waited = dataIn + inLen;
     dataOut = waited + 1;
 
+    double elapsedTime = 0;
 
     for (j=0; j<iter; j++) {
         /* Now write int's to the file as if it were memory (an array of ints).
@@ -208,11 +214,12 @@ int main(int argc, char *argv[])
         int ndevs;
         ndevs = getNumDevices(fd);
         getDeviceInfo(fd, ndevs-1, &dev);
-        //Perform transfers (fd, dev, in_len, in_offset, out_len, out_offset)
+        double start = getSec();
         performTransfers(fd, dev,
                 (inLen + 3)*sizeof(int), 0,    //3->in_len, wait, out_len
                 (outLen + 1)*sizeof(int), (inLen + 3)*sizeof(int)
                 );
+        elapsedTime += (getSec() - start);
 
         //Validate results
         int errors = 0;
@@ -248,8 +255,10 @@ int main(int argc, char *argv[])
     if (status) {
         printf("FAIL\n");
     } else {
-        printf("PASS\n");
+        //printf("PASS\n");
     }
+
+    printf("%lf", elapsedTime);
 
     return status;
 }
