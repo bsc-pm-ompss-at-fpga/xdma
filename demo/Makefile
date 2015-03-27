@@ -1,37 +1,22 @@
 CC = arm-xilinx-linux-gnueabi-gcc
-LDFLAGS := -L../lib -lxdma
-CFLAGS := -c -Wall -g -O0
-INCLUDES := -I. -I../dev -I../lib
+LDFLAGS := -L.. -lxdma
+CFLAGS := -std=c99 -c -Wall -g -O0
+INCLUDES := -I. -I..
 
 EXECUTABLE = \
-	app \
-	demo \
-	test \
-	len-test \
-	gen-task
+	loopback \
+	gen_task
 
 
 .PHONY : all
 all: $(EXECUTABLE)
 
 
-test : xdma-test.o
+loopback: loopback.o
 	$(CC) $< -o $@ $(LDFLAGS)
 
-
-demo : xdma-demo.o
+gen_task: gen_task.o
 	$(CC) $< -o $@ $(LDFLAGS)
-
-
-app : xdma-app.o
-	$(CC) $< -o $@ $(LDFLAGS)
-
-len-test : xdma-len-test.o
-	$(CC) $< -o $@ $(LDFLAGS)
-
-gen-task : xdma-gen-task.o
-	$(CC) $< -o $@ $(LDFLAGS)
-
 
 .c.o:
 	$(CC) $(INCLUDES) $(CFLAGS) $< -o $@
