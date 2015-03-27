@@ -249,19 +249,31 @@ static int xdma_finish_transfer(struct xdma_transfer *trans) {
 	cmp = (struct completion *)trans->completion;
 	cookie = trans->cookie;
 
-	tmo = wait_for_completion_timeout(cmp, tmo);
-	status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
-	if (0 == tmo) {
-		printk(KERN_ERR "<%s> Error: transfer timed out\n",
-				MODULE_NAME);
-		ret = -1;
-	} else if (status != DMA_COMPLETE) {
-		printk(KERN_DEBUG
-				"<%s> transfer: returned completion callback status of: \'%s\'\n",
-				MODULE_NAME,
-				status == DMA_ERROR ? "error" : "in progress");
-		ret = -1;
-	}
+    status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
+    if (status == DMA_COMPLETE) {
+        ret = XDMA_DMA_TRANSFER_FINISHED;
+    } else {
+        ret = XDMA_DMA_TRANSFER_PENDING;
+    }
+
+    if (trans->wait && status != DMA_COMPLETE) {
+        tmo = wait_for_completion_timeout(cmp, tmo);
+        status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
+        if (0 == tmo) {
+            printk(KERN_ERR "<%s> Error: transfer timed out\n",
+                    MODULE_NAME);
+            ret = -1;
+        } else if (status != DMA_COMPLETE) {
+            printk(KERN_DEBUG
+                    "<%s> transfer: returned completion callback status of: \'%s\'\n",
+                    MODULE_NAME,
+                    status == DMA_ERROR ? "error" : "in progress");
+            ret = -1;
+        } else {
+            //may need to check if something went wrong before timeout
+            ret = XDMA_DMA_TRANSFER_FINISHED;
+        }
+    }
 	return ret;
 }
 

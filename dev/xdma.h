@@ -28,6 +28,11 @@ extern "C" {
 		XDMA_TRANS_NONE,
 	};
 
+    enum xdma_transfer_status {
+        XDMA_DMA_TRANSFER_FINISHED = 0,
+        XDMA_DMA_TRANSFER_PENDING,
+    };
+
 	struct xdma_dev {
 		u32 tx_chan;	/* (struct dma_chan *) */
 		u32 tx_cmp;	/* (struct completion *) callback_param */
