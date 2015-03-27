@@ -18,6 +18,7 @@
 //#define MAP_SIZE  (4000)
 //#define FILESIZE (MAP_SIZE * sizeof(char))
 
+#define NUMDEVS_ENV "NUM_DMA_DEVICES"
 #define IN_VAL      0xC0FFEE
 #define OUT_VAL     0xDEADBEEF
 
@@ -196,8 +197,29 @@ int main(int argc, char *argv[])
     dataOut = waited + 1;
 
     double elapsedTime = 0;
+    int ndevs;
+    char *devEnv;
+
+    ndevs = getNumDevices(fd);
+    devEnv = getenv(NUMDEVS_ENV);
+    if (!devEnv) {
+        ndevs = 1;
+    } else {
+        int ndevEnv = atoi(devEnv);
+        ndevs = (ndevEnv < ndevs) ? ndevEnv : ndevs;
+    }
+    struct xdma_dev *devs;
+    devs = (struct xdma_dev*) malloc(ndevs * sizeof(struct xdma_dev));
+
+    for (i=0; i<ndevs; i++) {
+        getDeviceInfo(fd, i, &devs[i]);
+    }
 
     for (j=0; j<iter; j++) {
+        struct xdma_dev *dev;
+        //Set the device so that each task goes to a different accelerator
+        dev = &devs[i%ndevs];
+
         /* Now write int's to the file as if it were memory (an array of ints).
         */
         // fill tx (input) with a value
@@ -210,12 +232,8 @@ int main(int argc, char *argv[])
             dataOut[i] = -1;
         }
 
-        struct xdma_dev dev;
-        int ndevs;
-        ndevs = getNumDevices(fd);
-        getDeviceInfo(fd, ndevs-1, &dev);
         double start = getSec();
-        performTransfers(fd, dev,
+        performTransfers(fd, *dev,
                 (inLen + 3)*sizeof(int), 0,    //3->in_len, wait, out_len
                 (outLen + 1)*sizeof(int), (inLen + 3)*sizeof(int)
                 );
@@ -249,6 +267,7 @@ int main(int argc, char *argv[])
         perror("Error un-mmapping the file");
         /* Decide here whether to close(fd) and exit() or not. Depends... */
     }
+    free(devs);
     /* Un-mmaping doesn't close the file, so we still need to do that.  */
     close(fd);
 
