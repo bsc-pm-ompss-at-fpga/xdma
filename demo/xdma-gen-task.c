@@ -106,6 +106,8 @@ int performTransfers(const int fd, const struct xdma_dev dev,
     }
 
     int err;
+    rx_trans.wait = 1;
+    tx_trans.wait = 1;
     err =ioctl(fd, XDMA_FINISH_TRANSFER, &tx_trans);
     if (err < 0) {
         perror("Error waiting for output transfer\n");
