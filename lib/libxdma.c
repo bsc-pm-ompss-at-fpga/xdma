@@ -6,6 +6,7 @@
 // dma_cookie_t is defined in the kernel header <linux/dmaengine.h>
 #define dma_cookie_t int32_t
 #include "xdma.h"
+#include "libxdma.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,251 +15,261 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <alloca.h>
 
 #define BUS_IN_BYTES 4
 #define BUS_BURST 16
+//Assume there only are 1 in + 1 out channel per device
+#define CHANNELS_PER_DEVICE 2
+#define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
 
-static uint32_t alloc_offset;
-static int fd;
-static uint8_t *map;		/* mmapped array of char's */
+static int _fd;
+static uint8_t *_map;		/* mmapped array of char's */
 
-int num_of_devices;
-struct xdma_dev xdma_devices[MAX_DEVICES];
+static int _numDevices;
+static struct xdma_dev _devices[MAX_DEVICES];
+static struct xdma_chan_cfg _channels[MAX_CHANNELS];
+static unsigned int _kUsedSpace;
 
-uint32_t xdma_calc_offset(void *ptr)
-{
-	return (((uint8_t *) ptr) - &map[0]);
+
+static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
+
+
+//TODO: Constructor in order to initialize everything
+
+xdma_status xdmaOpen() {
+    _numDevices = -1;
+    _kUsedSpace = 0;
+    //TODO: check if library has been initialized
+    _fd = open(FILEPATH, O_RDWR | O_CREAT | O_TRUNC, (mode_t) 0600);
+    if (_fd == -1) {
+        perror("Error opening file for writing");
+        return XDMA_ERROR;
+    }
+
+    _map = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, _fd, 0);
+    if (_map == MAP_FAILED) {
+        close(_fd);
+        perror("Error mmapping the file");
+        return XDMA_ERROR;
+    }
+    return XDMA_SUCCESS;
 }
 
-uint32_t xdma_calc_size(int length, int byte_num)
-{
-	const int block = (BUS_IN_BYTES * BUS_BURST);
-	length = length * byte_num;
-
-	if (0 != (length % block)) {
-		length += (block - (length % block));
-	}
-
-	return length;
+xdma_status xdmaClose() {
+    if (munmap(_map, MAP_SIZE) == -1) {
+        perror("Error un-mmapping kernel memory");
+        return XDMA_ERROR;
+    }
+    if (close(_fd) == -1) {
+        perror("Error closing device file");
+        return XDMA_ERROR;
+    }
+    return XDMA_SUCCESS;
 }
 
-// Static allocator
-void *xdma_alloc(int length, int byte_num)
-{
-	void *array = &map[alloc_offset];
+xdma_status xdmaGetNumDevices(int *numDevices){
 
-	alloc_offset += xdma_calc_size(length, byte_num);
-
-	return array;
+    if (ioctl(_fd, XDMA_GET_NUM_DEVICES, numDevices) < 0) {
+        perror("Error ioctl getting device num");
+        return XDMA_ERROR;
+    }
+    return XDMA_SUCCESS;
 }
 
-void xdma_alloc_reset(void)
-{
-	alloc_offset = 0;
+xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs){
+
+    xdma_status status;
+    if (_numDevices < 0) { //devices have not been initialized
+        int ndevs;
+        status = xdmaGetNumDevices(&ndevs);
+        if (status != XDMA_SUCCESS) {
+            return XDMA_ERROR;
+        }
+        //Initialize all devices
+        for (int i=0; i<ndevs; i++) {
+            status = getDeviceInfo(i, &_devices[i]);
+            if (status != XDMA_SUCCESS) {
+                return XDMA_ERROR;
+                //TODO: It may be necessary some cleanup if there is an error
+            }
+        }
+        _numDevices = ndevs;
+    }
+    int retDevs;
+    retDevs = (entries < _numDevices) ? entries : _numDevices;
+
+    if (devices) {
+        for (int i=0; i<retDevs; i++) {
+            devices[i] = (xdma_device) &_devices[i];
+        }
+    }
+    if (devs) {
+        *devs = retDevs;
+    }
+
+    return XDMA_SUCCESS;
 }
 
-int xdma_init(void)
-{
-	int i;
-	struct xdma_chan_cfg dst_config;
-	struct xdma_chan_cfg src_config;
+xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, unsigned int flags, xdma_channel *channel) {
+    //Already initialized channels are not checked
+    struct xdma_chan_cfg *ch_config;
+    struct xdma_dev *dev;
 
-	/* Open the char device file.
-	 */
-	fd = open(FILEPATH, O_RDWR | O_CREAT | O_TRUNC, (mode_t) 0600);
-	if (fd == -1) {
-		perror("Error opening file for writing");
-		return EXIT_FAILURE;
-	}
+    dev = (struct xdma_dev*)device;
+    int devNumber = (dev - _devices);
+    //direction is going to be 0 or 1
+    ch_config = &_channels[devNumber*CHANNELS_PER_DEVICE + direction];
 
-	/* mmap the file to get access to the DMA memory area.
-	 */
-	map = mmap(0, FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (map == MAP_FAILED) {
-		close(fd);
-		perror("Error mmapping the file");
-		return EXIT_FAILURE;
-	}
+    if (direction == XDMA_FROM_DEVICE) {
+        ch_config->chan = dev->rx_chan;
+        ch_config->dir = XDMA_DEV_TO_MEM;
+    } else { //Should be either FROM device or TO device
+        ch_config->chan = dev->tx_chan;
+        ch_config->dir = XDMA_MEM_TO_DEV;
+    }
 
-	xdma_alloc_reset();
-
-	num_of_devices = xdma_num_of_devices();
-	if (num_of_devices <= 0) {
-		perror("Error no DMA devices found");
-		return EXIT_FAILURE;
-	}
-
-	for (i = 0; i < MAX_DEVICES; i++) {
-		xdma_devices[i].tx_chan = (u32) NULL;
-		xdma_devices[i].tx_cmp = (u32) NULL;
-		xdma_devices[i].rx_chan = (u32) NULL;
-		xdma_devices[i].rx_cmp = (u32) NULL;
-		xdma_devices[i].device_id = i;
-
-		if (i < num_of_devices) {
-			if (ioctl(fd, XDMA_GET_DEV_INFO, &xdma_devices[i]) < 0) {
-				perror("Error ioctl getting device info");
-				return EXIT_FAILURE;
-			}
-
-			dst_config.chan = xdma_devices[i].rx_chan;
-			dst_config.dir = XDMA_DEV_TO_MEM;
-			dst_config.coalesc = 1;
-			dst_config.delay = 0;
-			dst_config.reset = 0;
-			if (ioctl(fd, XDMA_DEVICE_CONTROL, &dst_config) < 0) {
-				perror("Error ioctl config dst (rx) chan");
-				return EXIT_FAILURE;
-			}
-
-			src_config.chan = xdma_devices[i].tx_chan;
-			src_config.dir = XDMA_MEM_TO_DEV;
-			src_config.coalesc = 1;
-			src_config.delay = 0;
-			src_config.reset = 0;
-			if (ioctl(fd, XDMA_DEVICE_CONTROL, &src_config) < 0) {
-				perror("Error ioctl config src (tx) chan");
-				return EXIT_FAILURE;
-			}
-		}
-	}
-	return EXIT_SUCCESS;
+    //These should be configurable using flags (TODO)
+    ch_config->coalesc = 1;
+    ch_config->delay = 0;
+    ch_config->reset = 0;
+    if (ioctl(_fd, XDMA_DEVICE_CONTROL, ch_config) < 0) {
+        perror("Error ioctl config rx chan");
+        return XDMA_ERROR;
+    }
+    *channel = (xdma_channel)ch_config;
+    return XDMA_SUCCESS;
 }
 
-int xdma_exit(void)
-{
-	if (munmap(map, FILESIZE) == -1) {
-		perror("Error un-mmapping the file");
-		return EXIT_FAILURE;
-	}
-
-	/* Un-mmaping doesn't close the file.
-	 */
-	close(fd);
-	return EXIT_SUCCESS;
+xdma_status xdmaCloseChannel(xdma_channel *channel) {
+    //Not necessary at this point
+    return XDMA_SUCCESS;
 }
 
-/* Query driver for number of devices.
- */
-int xdma_num_of_devices(void)
-{
-	int num_devices = 0;
-	if (ioctl(fd, XDMA_GET_NUM_DEVICES, &num_devices) < 0) {
-		perror("Error ioctl getting device num");
-		return -1;
-	}
-	return num_devices;
+xdma_status xdmaAllocateKernelBuffer(void **buffer, size_t len) {
+    if (len > MAP_SIZE - _kUsedSpace) {
+        //if there is not eough left space
+        fprintf(stderr, "Error allocating kernel buffer\n");
+        return XDMA_ERROR;
+    }
+    *buffer = _map + _kUsedSpace;
+    _kUsedSpace += len;
+    return XDMA_SUCCESS;
 }
 
-/* Perform DMA transaction
- *
- * To perform a one-way transaction set the unused directions pointer to NULL
- * or length to zero.
- */
-int xdma_perform_transaction(int device_id, enum xdma_wait wait,
-			     uint32_t * src_ptr, uint32_t src_length,
-			     uint32_t * dst_ptr, uint32_t dst_length)
-{
-	int ret = 0;
-	struct xdma_buf_info dst_buf;
-	struct xdma_buf_info src_buf;
-	struct xdma_transfer dst_trans;
-	struct xdma_transfer src_trans;
-	const bool src_used = ((src_ptr != NULL) && (src_length != 0));
-	const bool dst_used = ((dst_ptr != NULL) && (dst_length != 0));
-
-	if (device_id >= num_of_devices) {
-		perror("Error invalid device ID");
-		return -1;
-	}
-
-	if (src_used) {
-		src_buf.chan = xdma_devices[device_id].tx_chan;
-		src_buf.completion = xdma_devices[device_id].tx_cmp;
-		src_buf.cookie = 0;
-		src_buf.buf_offset = (u32) xdma_calc_offset(src_ptr);
-		src_buf.buf_size = (u32) (src_length * sizeof(src_ptr[0]));
-		src_buf.dir = XDMA_MEM_TO_DEV;
-		ret = (int)ioctl(fd, XDMA_PREP_BUF, &src_buf);
-		if (ret < 0) {
-			perror("Error ioctl set src (tx) buf");
-			return ret;
-		}
-	}
-
-	if (dst_used) {
-		dst_buf.chan = xdma_devices[device_id].rx_chan;
-		dst_buf.completion = xdma_devices[device_id].rx_cmp;
-		dst_buf.cookie = 0;
-		dst_buf.buf_offset = (u32) xdma_calc_offset(dst_ptr);
-		dst_buf.buf_size = (u32) (dst_length * sizeof(dst_ptr[0]));
-		dst_buf.dir = XDMA_DEV_TO_MEM;
-		ret = (int)ioctl(fd, XDMA_PREP_BUF, &dst_buf);
-		if (ret < 0) {
-			perror("Error ioctl set dst (rx) buf");
-			return ret;
-		}
-	}
-
-	if (src_used) {
-		src_trans.chan = xdma_devices[device_id].tx_chan;
-		src_trans.completion = xdma_devices[device_id].tx_cmp;
-		src_trans.cookie = src_buf.cookie;
-		src_trans.wait = (0 != (wait & XDMA_WAIT_SRC));
-		ret = (int)ioctl(fd, XDMA_START_TRANSFER, &src_trans);
-		if (ret < 0) {
-			perror("Error ioctl start src (tx) trans");
-			return ret;
-		}
-	}
-
-	if (dst_used) {
-		dst_trans.chan = xdma_devices[device_id].rx_chan;
-		dst_trans.completion = xdma_devices[device_id].rx_cmp;
-		dst_trans.cookie = dst_buf.cookie;
-		dst_trans.wait = (0 != (wait & XDMA_WAIT_DST));
-		ret = (int)ioctl(fd, XDMA_START_TRANSFER, &dst_trans);
-		if (ret < 0) {
-			perror("Error ioctl start dst (rx) trans");
-			return ret;
-		}
-	}
-
-	return ret;
+xdma_status xdmaFreeKernelBuffers() {
+    _kUsedSpace = 0;
+    return XDMA_SUCCESS;
 }
 
-int xdma_stop_transaction(int device_id,
-			  uint32_t * src_ptr, uint32_t src_length,
-			  uint32_t * dst_ptr, uint32_t dst_length)
-{
-	int ret = 0;
-	struct xdma_transfer dst_trans;
-	struct xdma_transfer src_trans;
-	const bool src_used = ((src_ptr != NULL) && (src_length != 0));
-	const bool dst_used = ((dst_ptr != NULL) && (dst_length != 0));
+xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel ch, xdma_transfer_handle *transfer) {
 
-	if (device_id >= num_of_devices) {
-		perror("Error invalid device ID");
-		return -1;
-	}
+    struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)ch;
+    struct xdma_dev *device = (struct xdma_dev*)dev;
+    //prepare kernel mapped buffer & submit
+    struct xdma_buf_info buf;
+    buf.chan = channel->chan;
+    //Weird. Completion callback may be stored per channel
+    buf.completion =
+        (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
+    buf.cookie = (u32) NULL;
+    buf.buf_offset = (u32) ((uint8_t *)buffer - _map);
+    buf.buf_size = (u32) len;
+    buf.dir = channel->dir;
 
-	if (src_used) {
-		src_trans.chan = xdma_devices[device_id].tx_chan;
-		ret = (int)ioctl(fd, XDMA_STOP_TRANSFER, &(src_trans.chan));
-		if (ret < 0) {
-			perror("Error ioctl stop src (tx) trans");
-			return ret;
-		}
-	}
+    if (ioctl(_fd, XDMA_PREP_BUF, &buf) < 0) {
+        perror("Error ioctl set rx buf");
+        return XDMA_ERROR;
+    }
 
-	if (dst_used) {
-		dst_trans.chan = xdma_devices[device_id].rx_chan;
-		ret = (int)ioctl(fd, XDMA_STOP_TRANSFER, &(dst_trans.chan));
-		if (ret < 0) {
-			perror("Error ioctl stop dst (rx) trans");
-			return ret;
-		}
-	}
+//    //prepare input buffer
+//    struct xdma_buf_info tx_buf;
+//    tx_buf.chan = dev.tx_chan;
+//    tx_buf.completion = dev.tx_cmp;
+//    tx_buf.cookie = (u32) NULL;
+//    tx_buf.buf_offset = (u32) in_offset;
+//    tx_buf.buf_size = (u32) in_len;
+//    tx_buf.dir = XDMA_MEM_TO_DEV;
+//    if (ioctl(fd, XDMA_PREP_BUF, &tx_buf) < 0) {
+//        perror("Error ioctl set tx buf");
+//        return -1;
+//    }
 
-	return ret;
+    //start input transfer host->dev
+    struct xdma_transfer *trans;
+    //May not be a good thing for the performance to allocate things for each
+    //transfer, but I did not come up with anythong better
+    if (wait) {
+        //If we are waiting for the transfer to finish, we can allocate
+        //the data structure in the stack
+        trans = (struct xdma_transfer*)alloca(sizeof(struct xdma_transfer));
+    } else {
+        trans = (struct xdma_transfer*)malloc(sizeof(struct xdma_transfer));
+    }
+    trans->chan = channel->chan;
+    trans->completion = buf.completion;
+    trans->cookie = buf.cookie;
+    trans->wait = wait;
+    if (ioctl(_fd, XDMA_START_TRANSFER, trans) < 0) {
+        perror("Error ioctl start tx trans");
+        return XDMA_ERROR;
+    }
+    if (!wait) {
+        *transfer = (xdma_transfer_handle)trans;
+    }
+    return XDMA_SUCCESS;
+
+//    //start output transfer dev->host
+//    struct xdma_transfer rx_trans;
+//    rx_trans.chan = dev.rx_chan;
+//    rx_trans.completion = dev.rx_cmp;
+//    rx_trans.cookie = rx_buf.cookie;
+//    rx_trans.wait = 0;
+//    if (ioctl(fd, XDMA_START_TRANSFER, &rx_trans) < 0) {
+//        perror("Error ioctl start rx trans");
+//        return -1;
+//    }
 }
+
+xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
+    struct xdma_transfer *trans = (struct xdma_transfer *)*transfer;
+    int status;
+
+    if (!trans) {
+        //If the pointer is null we assume that the transfer has been sucessfully
+        //compleeted and freed
+        return XDMA_SUCCESS;
+    }
+
+    trans->wait = (wait != 0);
+
+    status = ioctl(_fd, XDMA_FINISH_TRANSFER, trans);
+    if (status < 0) {
+        perror("Error waiting for output transfer\n");
+        return XDMA_ERROR;
+    } else if (status == XDMA_DMA_TRANSFER_PENDING) {
+        return XDMA_PENDING;
+    }
+    //free the transfer data structure since it has finished and it's not needed anymore
+
+    free(trans);
+    *transfer = (xdma_transfer_handle)NULL;
+
+    //TODO: reuse allocated transfer structures
+    return XDMA_SUCCESS;
+}
+
+
+static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
+    devInfo->tx_chan = (u32) NULL;
+    devInfo->tx_cmp = (u32) NULL;
+    devInfo->rx_chan = (u32) NULL;
+    devInfo->rx_cmp = (u32) NULL;
+    devInfo->device_id = deviceId;
+    if (ioctl(_fd, XDMA_GET_DEV_INFO, devInfo) < 0) {
+        perror("Error ioctl getting device info");
+        return XDMA_ERROR;
+    }
+    return XDMA_SUCCESS;
+}
+

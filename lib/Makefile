@@ -1,6 +1,6 @@
 CC = ${CROSS_COMPILE}gcc
 LDFLAGS := -lxdma
-CFLAGS := -c -Wall -Werror
+CFLAGS := -c -Wall -Werror -std=c99 -g
 INCLUDES := -I. -I../dev
 
 
@@ -8,25 +8,12 @@ INCLUDES := -I. -I../dev
 all : libxdma
 
 
-libxdma.o :
+libxdma.o : libxdma.c libxdma.h
 	$(CC) $(CFLAGS) $(INCLUDES) -fpic libxdma.c
 
 
 libxdma : libxdma.o
 	$(CC) -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o
-
-
-install : libxdma
-	sudo cp ${PWD}/libxdma.so /usr/lib
-	sudo cp ${PWD}/libxdma.h /usr/include
-	sudo chmod 0755 /usr/lib/libxdma.so
-	sudo ldconfig
-
-
-uninstall :
-	sudo rm /usr/lib/libxdma.so
-	sudo rm /usr/include/libxdma.h
-	sudo ldconfig
 
 
 .PHONY : clean
