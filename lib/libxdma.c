@@ -237,7 +237,7 @@ xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
 
     if (!trans) {
         //If the pointer is null we assume that the transfer has been sucessfully
-        //compleeted and freed
+        //completed and freed
         return XDMA_SUCCESS;
     }
 
@@ -245,7 +245,7 @@ xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
 
     status = ioctl(_fd, XDMA_FINISH_TRANSFER, trans);
     if (status < 0) {
-        perror("Error waiting for output transfer\n");
+        perror("Transfer finish error\n");
         return XDMA_ERROR;
     } else if (status == XDMA_DMA_TRANSFER_PENDING) {
         return XDMA_PENDING;
