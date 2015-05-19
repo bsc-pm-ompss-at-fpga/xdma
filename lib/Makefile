@@ -3,19 +3,21 @@ LDFLAGS := -lxdma
 CFLAGS := -c -Wall -Werror -std=c99 -g
 INCLUDES := -I. -I../dev
 
-
 .PHONY : all
-all : libxdma
+all : libxdma.so libxdma-static.a
 
 
 libxdma.o : libxdma.c libxdma.h
 	$(CC) $(CFLAGS) $(INCLUDES) -fpic libxdma.c
 
 
-libxdma : libxdma.o
+libxdma.so : libxdma.o
 	$(CC) -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o
+
+libxdma-static.a : libxdma.o
+	ar rcs $@ $^
 
 
 .PHONY : clean
 clean :
-	rm -f *.o libxdma.so
+	rm -f *.o libxdma.so libxdma-static.a
