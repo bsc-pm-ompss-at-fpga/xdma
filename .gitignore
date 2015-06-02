@@ -14,3 +14,10 @@ demo/gen-task
 *.order
 .tmp_versions
 *.cmd
+hls_*
+arm-linux-gnueabihf-*
+demo/gen_task
+demo/loopback
+demo/matmul
+libxdma-static.a
+
