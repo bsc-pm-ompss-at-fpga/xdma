@@ -21,6 +21,14 @@
 #include <linux/amba/xilinx_dma.h>
 #include <linux/platform_device.h>
 
+#define DEBUG_PRINT 1
+
+#ifdef DEBUG_PRINT
+#define PRINT_DBG(...) printk( __VA_ARGS__)
+#else
+#define PRINT_DBG(...)
+#endif
+
 static dev_t dev_num;		// Global variable for the device number
 static struct cdev c_dev;	// Global variable for the character device structure
 static struct class *cl;	// Global variable for the device class
@@ -132,6 +140,7 @@ static enum dma_transfer_direction xdma_to_dma_direction(enum xdma_direction
 
 static void xdma_sync_callback(void *completion)
 {
+    PRINT_DBG("Completion callback for %p\n", completion);
 	complete(completion);
 }
 
@@ -168,7 +177,23 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 	dma_cookie_t cookie;
 
 	chan = (struct dma_chan *)buf_info->chan;
-	cmp = (struct completion *)buf_info->completion;
+	//cmp = (struct completion *)buf_info->completion;
+    //Create a new completion for every operation
+    //TODO reuse completions when possible
+    //  Use a slab cache
+    //Completion must be created here
+    //XXX: Check if also has to be initialized here
+    cmp = kmalloc(sizeof(struct completion), GFP_KERNEL);
+
+    if (!cmp) {
+        printk(KERN_ERR "Unable to allocate XDMA completion\n");
+    }
+    init_completion(cmp);
+    buf_info->completion = (u32)cmp;
+
+    //init_completion(cmp);
+    //Init completion when submitting the transfer
+
 	buf = xdma_handle + buf_info->buf_offset;
 	len = buf_info->buf_size;
 	dir = xdma_to_dma_direction(buf_info->dir);
@@ -188,7 +213,8 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 		chan_desc->callback_param = cmp;
 
 		// set the prepared descriptor to be executed by the engine
-		cookie = chan_desc->tx_submit(chan_desc);
+		//cookie = chan_desc->tx_submit(chan_desc);
+        cookie = dmaengine_submit(chan_desc);
 		if (dma_submit_error(cookie)) {
 			printk(KERN_ERR "<%s> Error: tx_submit error\n",
 			       MODULE_NAME);
@@ -197,6 +223,8 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 
 		buf_info->cookie = cookie;
 	}
+    PRINT_DBG("Buffer prepared cmp=%p\n", cmp);
+    printk("buffer: %p:%d, %x\n", (void*)buf, len, (int)*xdma_addr);
 
 	return ret;
 }
@@ -213,11 +241,14 @@ static int xdma_start_transfer(struct xdma_transfer *trans)
 	chan = (struct dma_chan *)trans->chan;
 	cmp = (struct completion *)trans->completion;
 	cookie = trans->cookie;
+    //printk("submitting buffer cmp: %p\n", cmp);
 
-	init_completion(cmp);
+	//init_completion(cmp);
 	dma_async_issue_pending(chan);
+    PRINT_DBG("Submit transfer %p-%p-%d (ch-cmp-ck)", (void*)trans->chan, (void*)trans->completion, trans->cookie);
 
 	if (trans->wait) {
+        PRINT_DBG(" Sync transfer, waiting\n");
 		tmo = wait_for_completion_timeout(cmp, tmo);
 		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
 		if (0 == tmo) {
@@ -246,20 +277,32 @@ static int xdma_finish_transfer(struct xdma_transfer *trans) {
 	dma_cookie_t cookie;
 
 	chan = (struct dma_chan *)trans->chan;
+    //get the completion initialized while preparing the buffer
 	cmp = (struct completion *)trans->completion;
+
 	cookie = trans->cookie;
+    //printk(KERN_DEBUG "<%s> Completion: %d\n", MODULE_NAME, cmp->done);
+    PRINT_DBG("Finish transfer: Cmp/cookie: %p/%d -> done: %d\n", cmp, cookie, cmp->done);
 
     status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
     if (status == DMA_COMPLETE) {
         ret = XDMA_DMA_TRANSFER_FINISHED;
+        //delete completion if transfer has been completed
+        PRINT_DBG(" Transfer finished, deleting completion\n");
+        kfree(cmp);
     } else {
         ret = XDMA_DMA_TRANSFER_PENDING;
     }
+//    printk("Waiting on completion %p/%d (%d) %lu\n", cmp, cookie, status == DMA_COMPLETE, tmo);
+//    printk("F wait/enter: %d %d\n", trans->wait, (trans->wait && status != DMA_COMPLETE));
 
     if (trans->wait && status != DMA_COMPLETE) {
+        PRINT_DBG(" Waiting for completion... %p(%d)\n", cmp, cmp->done);
         tmo = wait_for_completion_timeout(cmp, tmo);
         status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
-        if (0 == tmo) {
+        PRINT_DBG("  Finished t left: %lu completed: %d\n", tmo, status == DMA_COMPLETE);
+        //printk("Transfer not yet completed (%d) tmo: %lu\n", status == DMA_COMPLETE, tmo);
+        if (0 == tmo ) {
             printk(KERN_ERR "<%s> Error: transfer timed out\n",
                     MODULE_NAME);
             ret = -1;
@@ -269,10 +312,13 @@ static int xdma_finish_transfer(struct xdma_transfer *trans) {
                     MODULE_NAME,
                     status == DMA_ERROR ? "error" : "in progress");
             ret = -1;
+            //We may distinguish between error or in progress
         } else {
             //may need to check if something went wrong before timeout
             ret = XDMA_DMA_TRANSFER_FINISHED;
         }
+        //if wait is blocking, delete the completion
+        kfree(cmp);
     }
 	return ret;
 }
