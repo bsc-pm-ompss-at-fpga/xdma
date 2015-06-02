@@ -5,7 +5,8 @@ INCLUDES := -I. -I..
 
 EXECUTABLE = \
 	loopback \
-	gen_task
+	gen_task \
+	matmul
 
 
 .PHONY : all
@@ -16,6 +17,9 @@ loopback: loopback.o
 	$(CC) $< -o $@ $(LDFLAGS)
 
 gen_task: gen_task.o
+	$(CC) $< -o $@ $(LDFLAGS)
+
+matmul: matmul.o
 	$(CC) $< -o $@ $(LDFLAGS)
 
 .c.o:
