@@ -1,7 +1,7 @@
-CC = arm-xilinx-linux-gnueabi-gcc
-LDFLAGS := -L.. -lxdma
-CFLAGS := -std=c99 -c -Wall -g -O0
-INCLUDES := -I. -I..
+CC = ${CROSS_COMPILE}gcc
+LDFLAGS := -L../lib -lxdma
+CFLAGS := -std=gnu99 -Wall -g -O0
+INCLUDES := -I. -I../lib
 
 EXECUTABLE = \
 	loopback \
