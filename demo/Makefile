@@ -1,7 +1,7 @@
-CC = ${CROSS_COMPILE}gcc
-LDFLAGS := -L../lib -lxdma
-CFLAGS := -std=gnu99 -Wall -g -O0
-INCLUDES := -I. -I../lib
+CC=${CROSS_COMPILE}gcc
+LDFLAGS=-L../lib -lxdma
+CFLAGS=-std=gnu99 -Wall -g -O0
+INCLUDES=-I. -I../lib
 
 EXECUTABLE = \
 	loopback \
@@ -12,20 +12,16 @@ EXECUTABLE = \
 .PHONY : all
 all: $(EXECUTABLE)
 
+loopback: loopback.c
+	$(CC) $(INCLUDES) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-loopback: loopback.o
-	$(CC) $< -o $@ $(LDFLAGS)
+gen_task: gen_task.c
+	$(CC) $(INCLUDES) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-gen_task: gen_task.o
-	$(CC) $< -o $@ $(LDFLAGS)
-
-matmul: matmul.o
-	$(CC) $< -o $@ $(LDFLAGS)
-
-.c.o:
-	$(CC) $(INCLUDES) $(CFLAGS) $< -o $@
+matmul: matmul.c
+	$(CC) $(INCLUDES) $(CFLAGS) -Wno-format-security $< -o $@ $(LDFLAGS)
 
 
 .PHONY : clean
 clean:
-	rm -f *.o $(EXECUTABLE)
+	rm -f $(EXECUTABLE)
