@@ -19,6 +19,15 @@ void referenceMatmul(float *a, float *b, float *out_c) {
     }
 }
 
+void printMatrix(int nElem, float *mat) {
+    for (int i=0; i<nElem; i++) {
+        for (int j=0; j<nElem; j++) {
+            printf("%.1f ", mat[i*M_SIZE + j]);
+        }
+        printf("\n");
+    }
+}
+
 static inline void checkError(xdma_status status, const char * msg) {
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, msg);
@@ -26,6 +35,21 @@ static inline void checkError(xdma_status status, const char * msg) {
 }
 
 int main(int argc, char *argv[]) {
+
+
+    float factor = 2.0;
+    float add = 0.0;
+
+    if (argc == 1) { //No argument given
+        fprintf(stderr, "Usage: %s <factor> <add>\n"
+                "defaults to 2.0, 0.1\n", argv[0]);
+    } else {
+        factor = atof(argv[1]);
+        if (argc > 2) {
+            add = atof(argv[2]);
+        }
+    }
+
     float *a, *b, *c, *cref, *result;
     xdma_status status;
 
@@ -45,11 +69,14 @@ int main(int argc, char *argv[]) {
     for (int i=0; i<M_SIZE; i++) {
         for (int j=0; j<M_SIZE; j++) {
             a[i*M_SIZE + j] = i*100 + j;
-            b[i*M_SIZE + j] = i;
-            c[i*M_SIZE + j] = 0;
+            c[i*M_SIZE + j] = add;
             result[i*M_SIZE + j] = 0.0;
-            cref[i*M_SIZE + j] = 0;
+            cref[i*M_SIZE + j] = add;
         }
+    }
+    //initialize diagonal matrix
+    for (int i=0; i<M_SIZE; i++) {
+        b[i*M_SIZE + i] = factor;
     }
 
     xdma_device dev;
@@ -96,6 +123,11 @@ int main(int argc, char *argv[]) {
             error += diff;
         }
     }
+    printf("A matrix:\n");
+    printMatrix(10, a);
+    printf("Result matrix (a*b + c)\n");
+    printMatrix(10, result);
+
     int exitStatus;
     if (error > 0.01) {
         printf("FAIL: Hardware results do not match reference values\n");
