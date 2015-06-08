@@ -4,7 +4,8 @@
 
 #include "libxdma.h"
 
-#define DEFAULT_LEN 16
+#define DEFAULT_LEN     16
+#define TEST_VAL        0xBADC0FEE
 
 void usage(char *exe) {
     printf("Usage: %s <data length>", exe);
@@ -29,16 +30,16 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    char *inData, *outData;
-    //in =  malloc(len*sizeof(char));
-    //out = malloc(len*sizeof(char));
+    int *inData, *outData;
+    //in =  malloc(len*sizeof(int));
+    //out = malloc(len*sizeof(int));
     //Buffers must be allocated in kernel space mapped memory
-    xdmaAllocateKernelBuffer((void **)&inData, len);
-    xdmaAllocateKernelBuffer((void **)&outData, len);
+    xdmaAllocateKernelBuffer((void **)&inData, len*sizeof(int));
+    xdmaAllocateKernelBuffer((void **)&outData, len*sizeof(int));
 
     for (int i=0; i<len; i++) {
-        inData[i] = '+';
-        outData[i] = '-';
+        inData[i] = TEST_VAL;
+        outData[i] = 0;
     }
 
     xdma_device dev;
@@ -60,11 +61,11 @@ int main(int argc, char *argv[]) {
     }
 
     xdma_transfer_handle inTransfer, outTransfer;
-    status = xdmaSubmitKBuffer(inData, len, 0, dev, inChannel, &inTransfer);
+    status = xdmaSubmitKBuffer(inData, len*sizeof(int), 0, dev, inChannel, &inTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting input transfer\n");
     }
-    status = xdmaSubmitKBuffer(outData, len, 0, dev, outChannel, &outTransfer);
+    status = xdmaSubmitKBuffer(outData, len*sizeof(int), 0, dev, outChannel, &outTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting output transfer\n");
     }
