@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     } else {
         len = atoi(argv[1]);
     }
-    //using 1 accelerator at this moment
+    //using 1 accelerator
 
     status = xdmaOpen();
     if (status != XDMA_SUCCESS) {
@@ -47,7 +47,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error getting platform devices\n");
         exit(1);
     }
-//xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, unsigned int flags, xdma_channel *channel) {
     xdma_channel inChannel, outChannel;
     status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, 0, &inChannel);
     if (status != XDMA_SUCCESS) {
@@ -61,8 +60,6 @@ int main(int argc, char *argv[]) {
     }
 
     xdma_transfer_handle inTransfer, outTransfer;
-    //xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
-    //        xdma_transfer_handle *transfer);
     status = xdmaSubmitKBuffer(inData, len, 0, dev, inChannel, &inTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting input transfer\n");

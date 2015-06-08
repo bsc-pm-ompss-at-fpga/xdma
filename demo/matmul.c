@@ -19,7 +19,7 @@ void referenceMatmul(float *a, float *b, float *out_c) {
     }
 }
 
-static inline void checkError(xdma_status status, char * msg) {
+static inline void checkError(xdma_status status, const char * msg) {
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, msg);
     }
@@ -54,40 +54,24 @@ int main(int argc, char *argv[]) {
 
     xdma_device dev;
     status = xdmaGetDevices(1, &dev, NULL);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error getting platform devices\n");
-        exit(1);
-    }
+    checkError(status, "Error getting platform devices\n");
+
     xdma_channel inChannel, outChannel;
     status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, 0, &inChannel);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error opening input channel\n");
-        exit(1);
-    }
+    checkError(status, "Error opening input channel\n");
     status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, 0, &outChannel);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error opening output channel\n");
-        exit(1);
-    }
+    checkError(status, "Error opening output channel\n");
 
     //transfer data
     xdma_transfer_handle aTrans, bTrans, cTrans, outTrans;
     status = xdmaSubmitKBuffer(a, M_SIZE*M_SIZE*sizeof(float), 0, dev, inChannel, &aTrans);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error submitting A matrix\n");
-    }
+        checkError(status, "Error submitting A matrix\n");
     status = xdmaSubmitKBuffer(b, M_SIZE*M_SIZE*sizeof(float), 0, dev, inChannel, &bTrans);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error submitting B matrix\n");
-    }
+        checkError(status, "Error submitting B matrix\n");
     status = xdmaSubmitKBuffer(c, M_SIZE*M_SIZE*sizeof(float), 0, dev, inChannel, &cTrans);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error submitting C matrix\n");
-    }
+        checkError(status, "Error submitting C matrix\n");
     status = xdmaSubmitKBuffer(result, M_SIZE*M_SIZE*sizeof(float), 0, dev, outChannel, &outTrans);
-    if (status != XDMA_SUCCESS) {
-        fprintf(stderr, "Error submitting result matrix\n");
-    }
+        checkError(status, "Error submitting result matrix\n");
 
     status = xdmaFinishTransfer(&aTrans, 1);
     checkError(status, "Error waiting for transfer A\n");
@@ -113,7 +97,7 @@ int main(int argc, char *argv[]) {
         }
     }
     int exitStatus;
-    if (error > 0.01) { //TODO: set a more intelligent threshold
+    if (error > 0.01) {
         printf("FAIL: Hardware results do not match reference values\n");
         exitStatus = 1;
     } else {
