@@ -4,23 +4,30 @@
 
 #include "libxdma.h"
 
-#define DEFAULT_LEN     16
 #define TEST_VAL        0xBADC0FEE
+#define MAX_ACC         2
+#define DEFAULT_ACC     0
+
+const int len = 16;
 
 void usage(char *exe) {
-    printf("Usage: %s <data length>", exe);
+    printf("Usage: %s <accelerator number>", exe);
 }
 
 int main(int argc, char *argv[]) {
-    int len;
+    int acc;
     xdma_status status;
     if (argc < 2) {
-        len = DEFAULT_LEN;
+        acc = DEFAULT_ACC;
     } else if (!strcmp(argv[1], "--help")) {
         usage(argv[0]);
         return 0;
     } else {
-        len = atoi(argv[1]);
+        acc = atoi(argv[1]);
+        if (acc > MAX_ACC || acc < 0) {
+            fprintf(stderr, "Warning:Wrong accelerator number, using first available\n");
+            acc = DEFAULT_ACC;
+        }
     }
     //using 1 accelerator
 
@@ -42,12 +49,19 @@ int main(int argc, char *argv[]) {
         outData[i] = 0;
     }
 
-    xdma_device dev;
-    status = xdmaGetDevices(1, &dev, NULL);
+    xdma_device dev, devices[MAX_ACC];
+    int accFound;
+    status = xdmaGetDevices(MAX_ACC, devices, &accFound);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error getting platform devices\n");
         exit(1);
     }
+    if (accFound-1 < acc) {
+        fprintf(stderr, "Warning: trying to use acc %d, but only %d found\n"
+                "Using acc 0\n", acc, accFound);
+        acc = DEFAULT_ACC;
+    }
+    dev = devices[acc];
     xdma_channel inChannel, outChannel;
     status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, 0, &inChannel);
     if (status != XDMA_SUCCESS) {
