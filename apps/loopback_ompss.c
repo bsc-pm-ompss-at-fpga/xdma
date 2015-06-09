@@ -3,7 +3,7 @@
 const int len = 10;
 
 #pragma omp target device(fpga) copy_deps
-#pragma omp task in([len]in) out([len]out)
+#pragma omp task in(in[0:len-1]) out(out[0:len-1])
 void loopback_test(int *in, int *out) {
     for (int i=0; i<len; i++) {
         out[i] = in[i];

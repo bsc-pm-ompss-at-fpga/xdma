@@ -5,7 +5,7 @@
 const int M_SIZE = 64;
 
 #pragma omp target device(fpga) copy_deps
-#pragma omp task in([M_SIZE*M_SIZE]a, [M_SIZE*M_SIZE]b) inout([M_SIZE*M_SIZE]c)
+#pragma omp task in([M_SIZE][M_SIZE]a, [M_SIZE][M_SIZE]b) inout([M_SIZE][M_SIZE]c)
 void matmul(float *a, float *b, float *c) {
     for (int i=0; i<M_SIZE; i++) {
         for (int j=0; j<M_SIZE; j++){
