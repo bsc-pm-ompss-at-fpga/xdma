@@ -108,15 +108,43 @@ extern "C" {
     xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
             xdma_transfer_handle *transfer);
     /*!
+     * \deprecated
      * Wait or get the status of a dma transfer
      * \param transfer[in,out]  DMA transfer handle. If transfer has been completed,
      *      resources associated with this transfer will be freed
      * \param wait[in]          Wait until the transfer has been completed
      * \return                  XDMA_SUCCESS if the transfer has finished successfully
-     *                          XDMA_PENDING if the pransfer has already not finished
-     *                          XDMA_ERROR if an error has occured
+     *                          XDMA_PENDING if the transfer has already not finished
+     *                          XDMA_ERROR if an error has occurred
      */
     xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait);
+
+    /*!
+     * Test the status of a transfer (finished, pending or error)
+     * \param transfer[in]  DMA transfer handle to be tested
+     * \return              Transfer status
+     *                      XDMA_SUCCESS if the transfer has finish successfully
+     *                      XDMA_PENDING if the transfer has not yet finished
+     *                      XDMA_ERROR if an error has occurred
+     */
+    xdma_status xdmaTestTransfer(xdma_transfer_handle transfer);
+
+    /*!
+     * Wait for a transfer to finish
+     * \param transfer[in]  DMA transfer handle
+     * \return              XDMA_SUCCESS if the transfer has finished successfully
+     *                      XDMA_PENDING if the transfer has already not finished
+     *                      XDMA_ERROR if an error has occurred
+     */
+    xdma_status xdmaWaitTransfer(xdma_transfer_handle transfer);
+
+    /*!
+     * Release the data structures associated with a DMA transfer
+     * \param transfer[in,out]  DMA transfer handle to be released
+     * \return                  XDMA_SUCCESS if transfer successfully released
+     *                          XDMA_ERROR otherwise
+     */
+    xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer);
 
 
 

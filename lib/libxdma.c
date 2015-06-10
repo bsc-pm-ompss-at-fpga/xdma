@@ -232,7 +232,7 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device de
 }
 
 xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
-    struct xdma_transfer *trans = (struct xdma_transfer *)*transfer;
+    struct xdma_transfer *trans = (struct xdma_transfer *)transfer;
     int status;
 
     if (!trans) {
@@ -259,6 +259,52 @@ xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
     return XDMA_SUCCESS;
 }
 
+static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, int wait) {
+    struct xdma_transfer *trans = (struct xdma_transfer *)transfer;
+    int status;
+
+    if (!trans) {
+        //Uninitialized/cleaned up transfer
+        return XDMA_ERROR;
+    }
+
+    trans->wait = wait;
+    status = ioctl(_fd, XDMA_FINISH_TRANSFER, trans);
+    if (status < 0) {
+        perror("Transfer finish error\n");
+        return XDMA_ERROR;
+    } else if (status == XDMA_DMA_TRANSFER_PENDING) {
+        return XDMA_PENDING;
+    } else {    //XDMA_SUCCESS
+        return XDMA_SUCCESS;
+    }
+}
+
+xdma_status xdmaTestTransfer(xdma_transfer_handle transfer){
+    return _xdmaFinishTransfer(transfer, 0);
+}
+
+xdma_status xdmaWaitTransfer(xdma_transfer_handle transfer){
+    xdma_status status = _xdmaFinishTransfer(transfer, 1);
+    if (status == XDMA_PENDING) {
+        fprintf(stderr, "Warining: transfer %x timed out\n", (unsigned int)transfer);
+    }
+    return status;
+}
+
+xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer){
+    struct xdma_transfer *trans = (struct xdma_transfer *)*transfer;
+
+    if (!trans) {
+        return XDMA_SUCCESS;
+    }
+
+    free(trans);
+    *transfer = (xdma_transfer_handle)NULL;
+
+    //TODO: reuse allocated transfer structures
+    return XDMA_SUCCESS;
+}
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     devInfo->tx_chan = (u32) NULL;
