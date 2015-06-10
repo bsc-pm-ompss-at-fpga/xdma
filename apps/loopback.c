@@ -83,14 +83,17 @@ int main(int argc, char *argv[]) {
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting output transfer\n");
     }
-    status = xdmaFinishTransfer(&inTransfer, 1);
+    status = xdmaWaitTransfer(inTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error during input transfer finalization");
     }
-    status = xdmaFinishTransfer(&outTransfer, 1);
+    status = xdmaWaitTransfer(outTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error during output transfer finalization");
     }
+
+    xdmaReleaseTransfer(&inTransfer);
+    xdmaReleaseTransfer(&outTransfer);
 
     //validate results
     int errors = 0;

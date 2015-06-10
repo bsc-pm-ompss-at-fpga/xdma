@@ -100,14 +100,19 @@ int main(int argc, char *argv[]) {
     status = xdmaSubmitKBuffer(result, M_SIZE*M_SIZE*sizeof(float), 0, dev, outChannel, &outTrans);
         checkError(status, "Error submitting result matrix\n");
 
-    status = xdmaFinishTransfer(&aTrans, 1);
+    status = xdmaWaitTransfer(aTrans);
     checkError(status, "Error waiting for transfer A\n");
-    status = xdmaFinishTransfer(&bTrans, 1);
+    status = xdmaWaitTransfer(bTrans);
     checkError(status, "Error waiting for transfer B\n");
-    status = xdmaFinishTransfer(&cTrans, 1);
+    status = xdmaWaitTransfer(cTrans);
     checkError(status, "Error waiting for transfer C\n");
-    status = xdmaFinishTransfer(&outTrans, 1);
+    status = xdmaWaitTransfer(outTrans);
     checkError(status, "Error waiting for output transfer\n");
+
+    xdmaReleaseTransfer(&aTrans);
+    xdmaReleaseTransfer(&bTrans);
+    xdmaReleaseTransfer(&cTrans);
+    xdmaReleaseTransfer(&outTrans);
 
     //run reference matmul & validate
     referenceMatmul(a, b, cref);
