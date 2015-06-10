@@ -1,7 +1,7 @@
 CC = ${CROSS_COMPILE}gcc
 LDFLAGS := -lxdma
 CFLAGS := -c -Wall -Werror -std=c99 -g
-INCLUDES := -I. -I../dev
+INCLUDES := -I. -I../driver
 
 .PHONY : all
 all : libxdma.so libxdma-static.a
