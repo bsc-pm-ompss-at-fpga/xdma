@@ -24,21 +24,25 @@ extern "C" {
 		XDMA_WAIT_BOTH = (1 << 1) | (1 << 0),
 	};
 
-    //typedef int xdma_status;
+    /**
+     * xdma status
+     */
     typedef enum {
-        XDMA_SUCCESS = 0,
-        XDMA_ERROR,
-        XDMA_PENDING,
+        XDMA_SUCCESS = 0,   ///< Operation finished sucessfully
+        XDMA_ERROR,         ///< Operation finished with an error
+        XDMA_PENDING,       ///< Operation not yet finished
     }xdma_status;
 
+    /// Channel direcction
     typedef enum {
-        XDMA_TO_DEVICE = 0,
-        XDMA_FROM_DEVICE = 1,
+        XDMA_TO_DEVICE = 0,     ///< From host main memory to device
+        XDMA_FROM_DEVICE = 1,   ///< From device to host main memory
     } xdma_dir;
 
+    /// Transfer mode for (non)blocking operation
     typedef enum {
-        XDMA_ASYNC = 0,
-        XDMA_SYNC = 1,
+        XDMA_ASYNC = 0,     ///< Asynchronous transfer (non blocking)
+        XDMA_SYNC = 1,      ///< Synchronous transfer (blocking)
     }xdma_xfer_mode;
 
     typedef enum {
