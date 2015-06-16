@@ -36,6 +36,15 @@ extern "C" {
         XDMA_FROM_DEVICE = 1,
     } xdma_dir;
 
+    typedef enum {
+        XDMA_ASYNC = 0,
+        XDMA_SYNC = 1,
+    }xdma_xfer_mode;
+
+    typedef enum {
+        XDMA_CH_NONE,
+    } xdma_channel_flags;
+
     typedef long unsigned int xdma_device;
     typedef long unsigned int xdma_channel;
     typedef long unsigned int xdma_transfer_handle;
@@ -75,7 +84,7 @@ extern "C" {
      * \param flags[in]     Channel flags (TBD)
      * \param channel[out]  Handle to the recently open channel
      */
-    xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, unsigned int flags, xdma_channel *channel);
+    xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel_flags flags, xdma_channel *channel);
     /*!
      * Close a DMA channel and release its resources
      *
@@ -100,12 +109,13 @@ extern "C" {
      * Submit a kernel allocated buffer to be transferred through DMA
      * \param buffer[in]    Buffer to be transferred
      * \param len[in]       Buffer length
-     * \param wait[in]      Wait until the transfer has finished {0,1}
+     * \param mode[in]      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
+     *                      for sync (blocking) or async (non blocking) transfers
      * \param channel[in]   DMA channel to operate
      * \param channel[out]  Pointer to the variable that will hold the transfer handle.
      *      If the transfer is blocking (wait == 1) the handle will not be valid. This pointer can be set to null
      */
-    xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
+    xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
             xdma_transfer_handle *transfer);
     /*!
      * \deprecated

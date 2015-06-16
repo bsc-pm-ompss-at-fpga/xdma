@@ -111,7 +111,7 @@ xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs){
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, unsigned int flags, xdma_channel *channel) {
+xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel_flags flags, xdma_channel *channel) {
     //Already initialized channels are not checked
     struct xdma_chan_cfg *ch_config;
     struct xdma_dev *dev;
@@ -162,7 +162,7 @@ xdma_status xdmaFreeKernelBuffers() {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel ch, xdma_transfer_handle *transfer) {
+xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel ch, xdma_transfer_handle *transfer) {
 
     struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)ch;
     struct xdma_dev *device = (struct xdma_dev*)dev;
@@ -199,7 +199,7 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device de
     struct xdma_transfer *trans;
     //May not be a good thing for the performance to allocate things for each
     //transfer, but I did not come up with anythong better
-    if (wait) {
+    if (mode == XDMA_SYNC) {
         //If we are waiting for the transfer to finish, we can allocate
         //the data structure in the stack
         trans = (struct xdma_transfer*)alloca(sizeof(struct xdma_transfer));
@@ -209,12 +209,12 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device de
     trans->chan = channel->chan;
     trans->completion = buf.completion;
     trans->cookie = buf.cookie;
-    trans->wait = wait;
+    trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
     if (ioctl(_fd, XDMA_START_TRANSFER, trans) < 0) {
         perror("Error ioctl start tx trans");
         return XDMA_ERROR;
     }
-    if (!wait) {
+    if (XDMA_ASYNC) {
         *transfer = (xdma_transfer_handle)trans;
     }
     return XDMA_SUCCESS;
@@ -259,7 +259,7 @@ xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
     return XDMA_SUCCESS;
 }
 
-static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, int wait) {
+static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, xdma_xfer_mode mode) {
     struct xdma_transfer *trans = (struct xdma_transfer *)transfer;
     int status;
 
@@ -268,7 +268,7 @@ static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, int
         return XDMA_ERROR;
     }
 
-    trans->wait = wait;
+    trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
     status = ioctl(_fd, XDMA_FINISH_TRANSFER, trans);
     if (status < 0) {
         perror("Transfer finish error\n");
