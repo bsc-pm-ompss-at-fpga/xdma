@@ -84,20 +84,20 @@ int main(int argc, char *argv[]) {
     checkError(status, "Error getting platform devices\n");
 
     xdma_channel inChannel, outChannel;
-    status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, 0, &inChannel);
+    status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel);
     checkError(status, "Error opening input channel\n");
-    status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, 0, &outChannel);
+    status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel);
     checkError(status, "Error opening output channel\n");
 
     //transfer data
     xdma_transfer_handle aTrans, bTrans, cTrans, outTrans;
-    status = xdmaSubmitKBuffer(a, M_SIZE*M_SIZE*sizeof(float), 0, dev, inChannel, &aTrans);
+    status = xdmaSubmitKBuffer(a, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, inChannel, &aTrans);
         checkError(status, "Error submitting A matrix\n");
-    status = xdmaSubmitKBuffer(b, M_SIZE*M_SIZE*sizeof(float), 0, dev, inChannel, &bTrans);
+    status = xdmaSubmitKBuffer(b, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, inChannel, &bTrans);
         checkError(status, "Error submitting B matrix\n");
-    status = xdmaSubmitKBuffer(c, M_SIZE*M_SIZE*sizeof(float), 0, dev, inChannel, &cTrans);
+    status = xdmaSubmitKBuffer(c, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, inChannel, &cTrans);
         checkError(status, "Error submitting C matrix\n");
-    status = xdmaSubmitKBuffer(result, M_SIZE*M_SIZE*sizeof(float), 0, dev, outChannel, &outTrans);
+    status = xdmaSubmitKBuffer(result, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, outChannel, &outTrans);
         checkError(status, "Error submitting result matrix\n");
 
     status = xdmaWaitTransfer(aTrans);

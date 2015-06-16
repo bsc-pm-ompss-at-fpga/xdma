@@ -63,23 +63,23 @@ int main(int argc, char *argv[]) {
     }
     dev = devices[acc];
     xdma_channel inChannel, outChannel;
-    status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, 0, &inChannel);
+    status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error opening input channel\n");
         exit(1);
     }
-    status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, 0, &outChannel);
+    status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error opening output channel\n");
         exit(1);
     }
 
     xdma_transfer_handle inTransfer, outTransfer;
-    status = xdmaSubmitKBuffer(inData, len*sizeof(int), 0, dev, inChannel, &inTransfer);
+    status = xdmaSubmitKBuffer(inData, len*sizeof(int), XDMA_ASYNC, dev, inChannel, &inTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting input transfer\n");
     }
-    status = xdmaSubmitKBuffer(outData, len*sizeof(int), 0, dev, outChannel, &outTransfer);
+    status = xdmaSubmitKBuffer(outData, len*sizeof(int), XDMA_ASYNC, dev, outChannel, &outTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting output transfer\n");
     }
