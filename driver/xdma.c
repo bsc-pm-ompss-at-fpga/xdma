@@ -38,17 +38,34 @@ dma_addr_t xdma_handle;
 
 struct xdma_dev *xdma_dev_info[MAX_DEVICES + 1];
 u32 num_devices;
+static int opened;
+static void xdma_init(void);
+static void xdma_cleanup(void);
 
 static int xdma_open(struct inode *i, struct file *f)
 {
-	printk(KERN_DEBUG "<%s> file: open()\n", MODULE_NAME);
-	return 0;
+	printk(KERN_DEBUG "<%s> file: open(): Running HW initialization\n",
+	       MODULE_NAME);
+	//Deal with multiple opens
+	if (opened == 0) {
+		xdma_init();
+		opened = 1;
+		return 0;
+	} else {
+		return -EBUSY;
+	}
 }
 
 static int xdma_close(struct inode *i, struct file *f)
 {
-	printk(KERN_DEBUG "<%s> file: close()\n", MODULE_NAME);
-	return 0;
+	printk(KERN_DEBUG "<%s> file: close(): Running cleanup\n", MODULE_NAME);
+	if (opened == 1) {
+		xdma_cleanup();
+		opened = 0;
+		return 0;
+	} else {
+		return -EBUSY;
+	}
 }
 
 static ssize_t xdma_read(struct file *f, char __user * buf, size_t
@@ -579,7 +596,7 @@ static void xdma_add_dev_info(struct dma_chan *tx_chan,
 	num_devices++;
 }
 
-static void xdma_probe(void)
+static void xdma_init(void)
 {
 	dma_cap_mask_t mask;
 	u32 match_tx, match_rx;
@@ -612,9 +629,10 @@ static void xdma_probe(void)
 	}
 }
 
-static void xdma_remove(void)
+static void xdma_cleanup(void)
 {
 	int i;
+	num_devices = 0;
 
 	for (i = 0; i < MAX_DEVICES; i++) {
 		if (xdma_dev_info[i]) {
@@ -638,7 +656,7 @@ static void xdma_remove(void)
 	}
 }
 
-static int __init xdma_init(void)
+static int __init xdma_probe(void)
 {
 	num_devices = 0;
 
@@ -675,9 +693,6 @@ static int __init xdma_init(void)
 		return -ENOMEM;
 	}
 
-	/* hardware setup */
-	xdma_probe();
-
 	return 0;
 }
 
@@ -690,16 +705,13 @@ static void __exit xdma_exit(void)
 	unregister_chrdev_region(dev_num, 1);
 	printk(KERN_DEBUG "<%s> exit: unregistered\n", MODULE_NAME);
 
-	/* hardware shutdown */
-	xdma_remove();
-
 	/* free mmap area */
 	if (xdma_addr) {
 		dma_free_coherent(NULL, DMA_LENGTH, xdma_addr, xdma_handle);
 	}
 }
 
-module_init(xdma_init);
+module_init(xdma_probe);
 module_exit(xdma_exit);
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Wrapper Driver For A Xilinx DMA Engine");
