@@ -67,10 +67,10 @@ extern "C" {
 
     /*!
      * Get the device handles for the devices present in the system
-     * \param entries[in]   Number of device handles that will be retrieved
-     * \param devices[out]  Array that will hold the device handles.
+     * \param[in] entries   Number of device handles that will be retrieved
+     * \param[out] devices  Array that will hold the device handles.
      *      This should have enough capacity to hold at least entries elements
-     * \param devs[out]     Number of handles copied to the devices array
+     * \param[out] devs     Number of handles copied to the devices array
      * \return XDMA_SUCCESS on success, XDMA_ERROR otherwise
      */
     xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs);
@@ -79,24 +79,24 @@ extern "C" {
      * Open device channel
      * Each device can have 1 input + 1 output channel
      *
-     * \param device[in]    Device that will be connected to the channel
-     * \param directon[in]  Direction of the channel
-     * \param flags[in]     Channel flags (TBD)
-     * \param channel[out]  Handle to the recently open channel
+     * \param[in] device    Device that will be connected to the channel
+     * \param[in] direction  Direction of the channel
+     * \param[in] flags     Channel flags (TBD)
+     * \param[out] channel  Handle to the recently open channel
      */
     xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel_flags flags, xdma_channel *channel);
     /*!
      * Close a DMA channel and release its resources
      *
-     * \param channel[in,out]   DMA channel which will be closed
+     * \param[in,out] channel   DMA channel which will be closed
      */
     xdma_status xdmaCloseChannel(xdma_channel *channel);
 
 
     /*!
      * Allocate a buffer in kernel space to be transferred to a xDMA device
-     * \param buffer[out]   Pointer to the allocated buffer
-     * \param len[in]       Buffer length in bytes
+     * \param[out] buffer   Pointer to the allocated buffer
+     * \param[in] len       Buffer length in bytes
      */
     xdma_status xdmaAllocateKernelBuffer(void **buffer, size_t len);
 
@@ -107,12 +107,13 @@ extern "C" {
 
     /*!
      * Submit a kernel allocated buffer to be transferred through DMA
-     * \param buffer[in]    Buffer to be transferred
-     * \param len[in]       Buffer length
-     * \param mode[in]      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
+     * \param[in] buffer    Buffer to be transferred
+     * \param[in] len       Buffer length
+     * \param[in] mode      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
      *                      for sync (blocking) or async (non blocking) transfers
-     * \param channel[in]   DMA channel to operate
-     * \param channel[out]  Pointer to the variable that will hold the transfer handle.
+     * \param[in] dev       DMA device to transfer data
+     * \param[in] channel   DMA channel to operate
+     * \param[out] transfer Pointer to the variable that will hold the transfer handle.
      *      If the transfer is blocking (wait == 1) the handle will not be valid. This pointer can be set to null
      */
     xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
@@ -120,9 +121,9 @@ extern "C" {
     /*!
      * \deprecated
      * Wait or get the status of a dma transfer
-     * \param transfer[in,out]  DMA transfer handle. If transfer has been completed,
-     *      resources associated with this transfer will be freed
-     * \param wait[in]          Wait until the transfer has been completed
+     * \param[in,out] transfer  DMA transfer handle. If transfer has been completed,
+     *                          resources associated with this transfer will be freed
+     * \param[in] wait          Wait until the transfer has been completed
      * \return                  XDMA_SUCCESS if the transfer has finished successfully
      *                          XDMA_PENDING if the transfer has already not finished
      *                          XDMA_ERROR if an error has occurred
@@ -131,7 +132,7 @@ extern "C" {
 
     /*!
      * Test the status of a transfer (finished, pending or error)
-     * \param transfer[in]  DMA transfer handle to be tested
+     * \param[in] transfer  DMA transfer handle to be tested
      * \return              Transfer status
      *                      XDMA_SUCCESS if the transfer has finish successfully
      *                      XDMA_PENDING if the transfer has not yet finished
@@ -141,7 +142,7 @@ extern "C" {
 
     /*!
      * Wait for a transfer to finish
-     * \param transfer[in]  DMA transfer handle
+     * \param[in] transfer  DMA transfer handle
      * \return              XDMA_SUCCESS if the transfer has finished successfully
      *                      XDMA_PENDING if the transfer has already not finished
      *                      XDMA_ERROR if an error has occurred
@@ -150,7 +151,7 @@ extern "C" {
 
     /*!
      * Release the data structures associated with a DMA transfer
-     * \param transfer[in,out]  DMA transfer handle to be released
+     * \param[in,out] transfer  DMA transfer handle to be released
      * \return                  XDMA_SUCCESS if transfer successfully released
      *                          XDMA_ERROR otherwise
      */
