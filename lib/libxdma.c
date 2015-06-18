@@ -231,34 +231,6 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
 //    }
 }
 
-xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait) {
-    struct xdma_transfer *trans = (struct xdma_transfer *)transfer;
-    int status;
-
-    if (!trans) {
-        //If the pointer is null we assume that the transfer has been sucessfully
-        //completed and freed
-        return XDMA_SUCCESS;
-    }
-
-    trans->wait = (wait != 0);
-
-    status = ioctl(_fd, XDMA_FINISH_TRANSFER, trans);
-    if (status < 0) {
-        perror("Transfer finish error\n");
-        return XDMA_ERROR;
-    } else if (status == XDMA_DMA_TRANSFER_PENDING) {
-        return XDMA_PENDING;
-    }
-    //free the transfer data structure since it has finished and it's not needed anymore
-
-    free(trans);
-    *transfer = (xdma_transfer_handle)NULL;
-
-    //TODO: reuse allocated transfer structures
-    return XDMA_SUCCESS;
-}
-
 static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, xdma_xfer_mode mode) {
     struct xdma_transfer *trans = (struct xdma_transfer *)transfer;
     int status;

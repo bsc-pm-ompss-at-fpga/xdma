@@ -122,17 +122,6 @@ extern "C" {
      */
     xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
             xdma_transfer_handle *transfer);
-    /*!
-     * \deprecated
-     * Wait or get the status of a dma transfer
-     * \param[in,out] transfer  DMA transfer handle. If transfer has been completed,
-     *                          resources associated with this transfer will be freed
-     * \param[in] wait          Wait until the transfer has been completed
-     * \return                  XDMA_SUCCESS if the transfer has finished successfully
-     *                          XDMA_PENDING if the transfer has already not finished
-     *                          XDMA_ERROR if an error has occurred
-     */
-    xdma_status xdmaFinishTransfer(xdma_transfer_handle *transfer, int wait);
 
     /*!
      * Test the status of a transfer (finished, pending or error)
