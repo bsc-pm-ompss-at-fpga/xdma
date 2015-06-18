@@ -65,6 +65,7 @@ int main(int argc, char *argv[]) {
     //check data
     int errors = 0;
     if (*waited != wait) {
+        errors++;
         fprintf(stderr, "Waited cycles do not match\n");
     }
     for (int i=0; i<outLen; i++) {
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
         }
     }
     nanos_fpga_free_dma_mem();
-    if (errors) {
+    if (!errors) {
         printf("PASS\n");
         return 0;
     } else {
