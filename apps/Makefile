@@ -4,7 +4,7 @@ CFLAGS=-std=gnu99 -Wall -g -O0
 INCLUDES=-I. -I../lib
 
 FPGACC=$(CROSS_COMPILE)fpgacc
-FPGACFLAGS=--ompss -std=c99 -k
+FPGACFLAGS=--ompss -std=c99 -k --debug
 
 EXECUTABLE = \
 	loopback \
