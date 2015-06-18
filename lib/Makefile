@@ -17,7 +17,10 @@ libxdma.so : libxdma.o
 libxdma-static.a : libxdma.o
 	ar rcs $@ $^
 
+doc:
+	doxygen
 
 .PHONY : clean
 clean :
 	rm -f *.o libxdma.so libxdma-static.a
+	rm -rf html latex
