@@ -84,16 +84,21 @@ int main(int argc, char **argv) {
         xdma_transfer_handle inTrans, outTrans, argTrans, waitedTrans;
         //xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
         //        xdma_transfer_handle *transfer);
-        xdmaSubmitKBuffer(args, sizeof(struct args_t), 0, devices[devIndex], inChannel[devIndex], &argTrans);
-        xdmaSubmitKBuffer(inData, inLen*sizeof(int), 0, devices[devIndex], inChannel[devIndex], &inTrans);
-        xdmaSubmitKBuffer(waited, sizeof(int), 0, devices[devIndex], outChannel[devIndex], &waitedTrans);
-        xdmaSubmitKBuffer(outData, outLen*sizeof(int), 0, devices[devIndex], outChannel[devIndex], &outTrans);
+        xdmaSubmitKBuffer(args, sizeof(struct args_t), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &argTrans);
+        xdmaSubmitKBuffer(inData, inLen*sizeof(int), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &inTrans);
+        xdmaSubmitKBuffer(waited, sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &waitedTrans);
+        xdmaSubmitKBuffer(outData, outLen*sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &outTrans);
 
         //wait for the transfers
-        xdmaFinishTransfer(&argTrans, 1);
-        xdmaFinishTransfer(&inTrans, 1);
-        xdmaFinishTransfer(&waitedTrans, 1);
-        xdmaFinishTransfer(&outTrans, 1);
+        xdmaWaitTransfer(argTrans);
+        xdmaWaitTransfer(inTrans);
+        xdmaWaitTransfer(waitedTrans);
+        xdmaWaitTransfer(outTrans);
+
+        xdmaReleaseTransfer(&argTrans);
+        xdmaReleaseTransfer(&inTrans);
+        xdmaReleaseTransfer(&waitedTrans);
+        xdmaReleaseTransfer(&outTrans);
 
         //check results
         if (*waited != wait) {
