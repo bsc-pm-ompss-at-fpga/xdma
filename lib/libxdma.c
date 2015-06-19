@@ -214,7 +214,7 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
         perror("Error ioctl start tx trans");
         return XDMA_ERROR;
     }
-    if (XDMA_ASYNC) {
+    if (mode == XDMA_ASYNC) {
         *transfer = (xdma_transfer_handle)trans;
     }
     return XDMA_SUCCESS;
