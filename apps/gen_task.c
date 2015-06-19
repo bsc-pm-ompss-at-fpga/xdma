@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "libxdma.h"
+#include "timing.h"
 
 #define MAX_DMA_DEVICES 2
 #define OUT_REF_VAL 0xDEADBEEF
@@ -62,6 +63,8 @@ int main(int argc, char **argv) {
         xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE, 0, &outChannel[i]);
     }
 
+    double start, time;
+    time = 0.0;
     int errors = 0;
     for (int ii=0; ii<iter; ii++) {
         //init data
@@ -79,6 +82,8 @@ int main(int argc, char **argv) {
         args->in = inLen;
         args->wait = wait;
         args->out = outLen;
+
+        start = getusec_();
 
         //send buffers
         xdma_transfer_handle inTrans, outTrans, argTrans, waitedTrans;
@@ -99,6 +104,7 @@ int main(int argc, char **argv) {
         xdmaReleaseTransfer(&inTrans);
         xdmaReleaseTransfer(&waitedTrans);
         xdmaReleaseTransfer(&outTrans);
+        time += getusec_() - start;
 
         //check results
         if (*waited != wait) {
@@ -115,6 +121,7 @@ int main(int argc, char **argv) {
         }
 
     }
+    printf("%lf\n", time/1e6);
 
     xdmaClose();
     //free(devices);
