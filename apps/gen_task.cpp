@@ -76,11 +76,9 @@ int main(int argc, char **argv) {
     xdmaAllocateKernelBuffer((void**)&waited, sizeof(int)*iter);
 
     xdma_device devices[MAX_DMA_DEVICES];
-    //devices = (xdma_device)malloc(ndevs*sizeof(xdma_device));
     xdmaGetDevices(ndevs, devices, NULL);
 
     xdma_channel inChannel[MAX_DMA_DEVICES], outChannel[MAX_DMA_DEVICES];
-    //xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, unsigned int flags, xdma_channel *channel) {
     for (int i=0; i<ndevs; i++) {
         xdmaOpenChannel(devices[i], XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel[i]);
         xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel[i]);
@@ -88,33 +86,29 @@ int main(int argc, char **argv) {
     std::queue<xdma_transfer_handle> inQueue;
     std::queue<xdma_transfer_handle> outQueue;
 
+    args->in = inLen;
+    args->wait = wait;
+    args->out = outLen;
+
+    //init data
+    for (int i=0; i<iter; i++) {
+        waited[i] = 0;
+    }
+    for (int i=0; i<outLen*iter; i++) {
+        outData[i] = 0;
+    }
+
     double start, time;
     time = 0.0;
     int errors = 0;
     for (int ii=0; ii<iter; ii++) {
-        //init data
 
-        //Dont't need to initialize input data
-        //for (int i=0; i<inLen; i++) {
-        //    inData[i] = -1;
-        //}
-
-        for (int i=0; i<outLen; i++) {
-            outData[ii*outLen + i] = 0;
-        }
         int devIndex = ii%ndevs;
-        waited[ii] = 0;
-        args->in = inLen;
-        args->wait = wait;
-        args->out = outLen;
-
 
         start = getusec_();
 
         //send buffers
         xdma_transfer_handle inTrans, outTrans, argTrans, waitedTrans;
-        //xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
-        //        xdma_transfer_handle *transfer);
         xdmaSubmitKBuffer(args, sizeof(struct args_t), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &argTrans);
         pushTransfer(inQueue, argTrans);
         xdmaSubmitKBuffer(&inData[ii*inLen], inLen*sizeof(int), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &inTrans);
@@ -155,7 +149,6 @@ int main(int argc, char **argv) {
     printf("%lf\n", time/1e6);
 
     xdmaClose();
-    //free(devices);
     int ret;
     if (errors) {
         printf("%d errors found!!\n"
