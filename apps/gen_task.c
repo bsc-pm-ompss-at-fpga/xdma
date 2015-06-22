@@ -47,10 +47,10 @@ int main(int argc, char **argv) {
     int *waited;
     struct args_t *args;
 
-    xdmaAllocateKernelBuffer((void**)&inData, inLen*sizeof(int));
-    xdmaAllocateKernelBuffer((void**)&outData, outLen*sizeof(int));
+    xdmaAllocateKernelBuffer((void**)&inData, inLen*sizeof(int)*iter);
+    xdmaAllocateKernelBuffer((void**)&outData, outLen*sizeof(int)*iter);
     xdmaAllocateKernelBuffer((void**)&args, sizeof(struct args_t));
-    xdmaAllocateKernelBuffer((void**)&waited, sizeof(int));
+    xdmaAllocateKernelBuffer((void**)&waited, sizeof(int)*iter);
 
     xdma_device devices[MAX_DMA_DEVICES];
     //devices = (xdma_device)malloc(ndevs*sizeof(xdma_device));
@@ -75,10 +75,10 @@ int main(int argc, char **argv) {
         //}
 
         for (int i=0; i<outLen; i++) {
-            outData[i] = 0;
+            outData[ii*outLen + i] = 0;
         }
         int devIndex = ii%ndevs;
-        *waited = 0;
+        waited[ii] = 0;
         args->in = inLen;
         args->wait = wait;
         args->out = outLen;
@@ -90,9 +90,9 @@ int main(int argc, char **argv) {
         //xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
         //        xdma_transfer_handle *transfer);
         xdmaSubmitKBuffer(args, sizeof(struct args_t), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &argTrans);
-        xdmaSubmitKBuffer(inData, inLen*sizeof(int), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &inTrans);
-        xdmaSubmitKBuffer(waited, sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &waitedTrans);
-        xdmaSubmitKBuffer(outData, outLen*sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &outTrans);
+        xdmaSubmitKBuffer(&inData[ii*inLen], inLen*sizeof(int), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &inTrans);
+        xdmaSubmitKBuffer(&waited[ii], sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &waitedTrans);
+        xdmaSubmitKBuffer(&outData[ii*outLen], outLen*sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &outTrans);
 
         //wait for the transfers
         xdmaWaitTransfer(argTrans);
@@ -106,20 +106,21 @@ int main(int argc, char **argv) {
         xdmaReleaseTransfer(&outTrans);
         time += getusec_() - start;
 
-        //check results
-        if (*waited != wait) {
+
+    }
+    for (int ii=0; ii<iter; ii++) {
+        if (waited[ii] != wait) {
             fprintf(stderr, "Error checking waited cycles for iteration %d (%d instead of %d)\n",
                     ii, *waited, wait);
             errors++;
         }
         for (int i=0; i<outLen; i++) {
-            if (outData[i] != OUT_REF_VAL) {
-                fprintf(stderr, "Error in output data #%d in iterarion $d: %d instead of %d\n",
-                        i, outData[i], OUT_REF_VAL);
+            if (outData[ii*outLen + i] != OUT_REF_VAL) {
+                fprintf(stderr, "Error in output data #%d in iterarion %d: %d instead of %d\n",
+                        i, ii, outData[i], OUT_REF_VAL);
                 errors++;
             }
         }
-
     }
     printf("%lf\n", time/1e6);
 
