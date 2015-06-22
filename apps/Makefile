@@ -1,6 +1,10 @@
 CC=${CROSS_COMPILE}gcc
-LDFLAGS=-L../lib -lxdma
 CFLAGS=-std=gnu99 -Wall -g -O0
+
+CXX=$(CROSS_COMPILE)g++
+CXXFLAGS=-Wall -g -O0
+
+LDFLAGS=-L../lib -lxdma
 INCLUDES=-I. -I../lib
 
 FPGACC=$(CROSS_COMPILE)fpgacc
@@ -18,8 +22,8 @@ all: $(EXECUTABLE)
 loopback: loopback.c
 	$(CC) $(INCLUDES) $(CFLAGS) $< -o $@ $(LDFLAGS)
 
-gen_task: gen_task.c
-	$(CC) $(INCLUDES) $(CFLAGS) $< -o $@ $(LDFLAGS)
+gen_task: gen_task.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
 
 matmul: matmul.c
 	$(CC) $(INCLUDES) $(CFLAGS) -Wno-format-security $< -o $@ $(LDFLAGS)

@@ -1,6 +1,8 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+
+#include <queue>
 
 #include "libxdma.h"
 #include "timing.h"
@@ -8,6 +10,27 @@
 #define MAX_DMA_DEVICES 2
 #define OUT_REF_VAL 0xDEADBEEF
 #define NUMDEVS_ENV "NUM_DMA_DEVICES"
+
+#define WAIT_ALL -1
+#define PIPELINE 32
+
+inline void waitTransfers(std::queue<xdma_transfer_handle> &q, int num) {
+    int size = q.size();
+    num = (num<0 || num> size) ? size : num;
+    for (int i=0; i<num; i++) {
+        xdma_transfer_handle tx = q.front();
+        xdmaWaitTransfer(tx);
+        xdmaReleaseTransfer(&tx);
+        q.pop();
+    }
+}
+
+inline void pushTransfer( std::queue<xdma_transfer_handle> &q, xdma_transfer_handle handle) {
+    if (q.size() >= PIPELINE) {
+        waitTransfers(q, 1);
+    }
+    q.push(handle);
+}
 
 //This is used to transfer the arguments in the correct order
 //They need to be transferred in the correct order
@@ -59,9 +82,11 @@ int main(int argc, char **argv) {
     xdma_channel inChannel[MAX_DMA_DEVICES], outChannel[MAX_DMA_DEVICES];
     //xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, unsigned int flags, xdma_channel *channel) {
     for (int i=0; i<ndevs; i++) {
-        xdmaOpenChannel(devices[i], XDMA_TO_DEVICE, 0, &inChannel[i]);
-        xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE, 0, &outChannel[i]);
+        xdmaOpenChannel(devices[i], XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel[i]);
+        xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel[i]);
     }
+    std::queue<xdma_transfer_handle> inQueue;
+    std::queue<xdma_transfer_handle> outQueue;
 
     double start, time;
     time = 0.0;
@@ -83,6 +108,7 @@ int main(int argc, char **argv) {
         args->wait = wait;
         args->out = outLen;
 
+
         start = getusec_();
 
         //send buffers
@@ -90,24 +116,28 @@ int main(int argc, char **argv) {
         //xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, int wait, xdma_device dev, xdma_channel channel,
         //        xdma_transfer_handle *transfer);
         xdmaSubmitKBuffer(args, sizeof(struct args_t), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &argTrans);
+        pushTransfer(inQueue, argTrans);
         xdmaSubmitKBuffer(&inData[ii*inLen], inLen*sizeof(int), XDMA_ASYNC, devices[devIndex], inChannel[devIndex], &inTrans);
+        pushTransfer(inQueue, inTrans);
         xdmaSubmitKBuffer(&waited[ii], sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &waitedTrans);
+        pushTransfer(outQueue, waitedTrans);
         xdmaSubmitKBuffer(&outData[ii*outLen], outLen*sizeof(int), XDMA_ASYNC, devices[devIndex], outChannel[devIndex], &outTrans);
+        pushTransfer(outQueue, outTrans);
 
-        //wait for the transfers
-        xdmaWaitTransfer(argTrans);
-        xdmaWaitTransfer(inTrans);
-        xdmaWaitTransfer(waitedTrans);
-        xdmaWaitTransfer(outTrans);
+#ifdef NO_PIPELINE
+        waitTransfers(inQueue, WAIT_ALL);
+        waitTransfers(outQueue, WAIT_ALL);
+#endif //NO_PIPELINE
 
-        xdmaReleaseTransfer(&argTrans);
-        xdmaReleaseTransfer(&inTrans);
-        xdmaReleaseTransfer(&waitedTrans);
-        xdmaReleaseTransfer(&outTrans);
         time += getusec_() - start;
 
 
     }
+#ifndef NO_PIPELINE
+    waitTransfers(inQueue, WAIT_ALL);
+    waitTransfers(outQueue, WAIT_ALL);
+#endif // !NO_PIPELINE
+
     for (int ii=0; ii<iter; ii++) {
         if (waited[ii] != wait) {
             fprintf(stderr, "Error checking waited cycles for iteration %d (%d instead of %d)\n",
@@ -115,7 +145,7 @@ int main(int argc, char **argv) {
             errors++;
         }
         for (int i=0; i<outLen; i++) {
-            if (outData[ii*outLen + i] != OUT_REF_VAL) {
+            if (outData[ii*outLen + i] != (int)OUT_REF_VAL) {
                 fprintf(stderr, "Error in output data #%d in iterarion %d: %d instead of %d\n",
                         i, ii, outData[i], OUT_REF_VAL);
                 errors++;
