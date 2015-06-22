@@ -99,13 +99,11 @@ int main(int argc, char **argv) {
     }
 
     double start, time;
-    time = 0.0;
     int errors = 0;
+    start = getusec_();
     for (int ii=0; ii<iter; ii++) {
 
         int devIndex = ii%ndevs;
-
-        start = getusec_();
 
         //send buffers
         xdma_transfer_handle inTrans, outTrans, argTrans, waitedTrans;
@@ -122,15 +120,13 @@ int main(int argc, char **argv) {
         waitTransfers(inQueue, WAIT_ALL);
         waitTransfers(outQueue, WAIT_ALL);
 #endif //NO_PIPELINE
-
-        time += getusec_() - start;
-
-
     }
 #ifndef NO_PIPELINE
     waitTransfers(inQueue, WAIT_ALL);
     waitTransfers(outQueue, WAIT_ALL);
 #endif // !NO_PIPELINE
+
+    time = getusec_() - start;
 
     for (int ii=0; ii<iter; ii++) {
         if (waited[ii] != wait) {
