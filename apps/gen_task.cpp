@@ -8,8 +8,10 @@
 #include "timing.h"
 
 #define MAX_DMA_DEVICES 2
-#define OUT_REF_VAL 0xDEADBEEF
 #define NUMDEVS_ENV "NUM_DMA_DEVICES"
+
+const int IN_MAGIC_VAL = 0xC0FFEE;
+const int OUT_REF_VAL  = 0xDEADBEEF;
 
 #define WAIT_ALL -1
 #define PIPELINE 32
@@ -94,6 +96,9 @@ int main(int argc, char **argv) {
     for (int i=0; i<iter; i++) {
         waited[i] = 0;
     }
+    for (int i=0; i<inLen*iter; i++) {
+        inData[i] = IN_MAGIC_VAL;
+    }
     for (int i=0; i<outLen*iter; i++) {
         outData[i] = 0;
     }
@@ -132,6 +137,9 @@ int main(int argc, char **argv) {
         if (waited[ii] != wait) {
             fprintf(stderr, "Error checking waited cycles for iteration %d (%d instead of %d)\n",
                     ii, *waited, wait);
+            if (waited[ii] < 0) {
+                fprintf(stderr, "    %d elements failed to read from the accelerator\n", -waited[ii]);
+            }
             errors++;
         }
         for (int i=0; i<outLen; i++) {
