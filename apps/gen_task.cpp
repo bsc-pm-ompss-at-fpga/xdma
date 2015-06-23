@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
     for (int ii=0; ii<iter; ii++) {
         if (waited[ii] != wait) {
             fprintf(stderr, "Error checking waited cycles for iteration %d (%d instead of %d)\n",
-                    ii, *waited, wait);
+                    ii, waited[ii], wait);
             if (waited[ii] < 0) {
                 fprintf(stderr, "    %d elements failed to read from the accelerator\n", -waited[ii]);
             }
