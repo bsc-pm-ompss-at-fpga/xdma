@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "timing.h"
+
 const int IN_MAGIC_VAL = 0xC0FFEE;
 const int OUT_REF_VAL  = 0xDEADBEEF;
 
@@ -62,10 +64,12 @@ int main(int argc, char *argv[]) {
         inData[i] = IN_MAGIC_VAL;
     }
 
+    START_COUNT_TIME;
     for (int i=0; i<iter; i++) {
         gen_task(inLen, outLen, args, &inData[inLen*i], &waited[i], &outData[outLen*i]);
     }
 #pragma omp taskwait
+    STOP_COUNT_TIME("");
 
     //check data
     int errors = 0;
