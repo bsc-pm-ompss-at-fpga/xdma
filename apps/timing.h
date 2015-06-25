@@ -17,7 +17,7 @@ double getusec_() {
 #define START_COUNT_TIME stamp_=getusec_();
 #define STOP_COUNT_TIME(_m) stamp_=getusec_()-stamp_;\
                         stamp_=stamp_/1e6;\
-                        printf ("%s:%0.6fs\n",(_m), stamp_);
+                        printf ("%s%0.6f\n",(_m), stamp_);
 
 
 #ifdef __cplusplus
