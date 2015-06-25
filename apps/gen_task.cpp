@@ -159,7 +159,6 @@ int main(int argc, char **argv) {
                 "FAIL\n", errors);
         ret = 1;
     } else {
-        printf("PASS\n");
         ret = 0;
     }
     return ret;

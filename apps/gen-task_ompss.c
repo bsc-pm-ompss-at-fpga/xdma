@@ -94,14 +94,12 @@ int main(int argc, char *argv[]) {
     }
 
     nanos_fpga_free_dma_mem();
-    if (!errors) {
-        printf("PASS\n");
-        return 0;
-    } else {
+    if (errors) {
         printf("FAIL\n");
         printf("Program failed with %d errors\n", errors);
         return 1;
     }
+    return 0;
 
 
 }
