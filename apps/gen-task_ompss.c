@@ -2,7 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define OUT_REF_VAL 0xDEADBEEF
+const int IN_MAGIC_VAL = 0xC0FFEE;
+const int OUT_REF_VAL  = 0xDEADBEEF;
 
 typedef struct {
     int in;
@@ -45,9 +46,9 @@ int main(int argc, char *argv[]) {
     args_t *args;
 
     args = nanos_fpga_alloc_dma_mem(sizeof(args_t));
-    waited = nanos_fpga_alloc_dma_mem(sizeof(int));
-    inData = nanos_fpga_alloc_dma_mem(inLen*sizeof(int));
-    outData = nanos_fpga_alloc_dma_mem(outLen*sizeof(int));
+    waited = nanos_fpga_alloc_dma_mem(sizeof(int)*iter);
+    inData = nanos_fpga_alloc_dma_mem(inLen*sizeof(int)*iter);
+    outData = nanos_fpga_alloc_dma_mem(outLen*sizeof(int)*iter);
 
     //set args
     args->in = inLen;
@@ -55,25 +56,39 @@ int main(int argc, char *argv[]) {
     args->out = outLen;
 
     //clear data
-    memset(inData, 0, inLen*sizeof(int));
-    memset(outData, 0, outLen*sizeof(int));
-    *waited = 0;
+    memset(outData, 0, outLen*sizeof(int)*iter);
+    memset(waited, 0, sizeof(int)*iter);
+    for (int i=0; i<inLen*iter; i++) {
+        inData[i] = IN_MAGIC_VAL;
+    }
 
-    gen_task(inLen, outLen, args, inData, waited, outData);
+    for (int i=0; i<iter; i++) {
+        gen_task(inLen, outLen, args, &inData[inLen*i], &waited[i], &outData[outLen*i]);
+    }
 #pragma omp taskwait
 
     //check data
     int errors = 0;
-    if (*waited != wait) {
-        errors++;
-        fprintf(stderr, "Waited cycles do not match\n");
-    }
-    for (int i=0; i<outLen; i++) {
-        if (outData[i] != OUT_REF_VAL) {
+
+
+    for (int ii=0; ii<iter; ii++) {
+        if (waited[ii] != wait) {
+            fprintf(stderr, "Error checking waited cycles for iteration %d (%d instead of %d)\n",
+                    ii, waited[ii], wait);
+            if (waited[ii] < 0) {
+                fprintf(stderr, "    %d elements failed to read from the accelerator\n", -waited[ii]);
+            }
             errors++;
-            fprintf(stderr, "Error in [%d] %d != %d\n", i, outData[i], OUT_REF_VAL);
+        }
+        for (int i=0; i<outLen; i++) {
+            if (outData[ii*outLen + i] != (int)OUT_REF_VAL) {
+                fprintf(stderr, "Error in output data #%d in iterarion %d: %d instead of %d\n",
+                        i, ii, outData[i], OUT_REF_VAL);
+                errors++;
+            }
         }
     }
+
     nanos_fpga_free_dma_mem();
     if (!errors) {
         printf("PASS\n");
