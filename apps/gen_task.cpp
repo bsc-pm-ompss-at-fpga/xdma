@@ -9,12 +9,15 @@
 
 #define MAX_DMA_DEVICES 2
 #define NUMDEVS_ENV "NUM_DMA_DEVICES"
+#define PIPELINE_ENV "DMA_PIPELINE_LEN"
+#define MIN_PIPELINE_LEN 2
 
 const int IN_MAGIC_VAL = 0xC0FFEE;
 const int OUT_REF_VAL  = 0xDEADBEEF;
 
 #define WAIT_ALL -1
-#define PIPELINE 32
+static unsigned int _pipeline = 32;
+
 
 inline void waitTransfers(std::queue<xdma_transfer_handle> &q, int num) {
     int size = q.size();
@@ -28,7 +31,7 @@ inline void waitTransfers(std::queue<xdma_transfer_handle> &q, int num) {
 }
 
 inline void pushTransfer( std::queue<xdma_transfer_handle> &q, xdma_transfer_handle handle) {
-    if (q.size() >= PIPELINE) {
+    if (q.size() >= _pipeline) {
         waitTransfers(q, 1);
     }
     q.push(handle);
@@ -66,6 +69,19 @@ int main(int argc, char **argv) {
     } else {
         int ndevEnv = atoi(devEnv);
         ndevs = (ndevEnv < ndevs) ? ndevEnv : ndevs;
+    }
+
+    char *pplineEnv;
+    pplineEnv = getenv(PIPELINE_ENV);
+    if (pplineEnv) {
+        int p;
+        p = atoi(pplineEnv);
+        if (p < 2) {
+            fprintf(stderr, "Pipeline length cannot be <2. Defaulting to 2");
+            _pipeline = 2;
+        } else {
+            _pipeline = p;
+        }
     }
 
     int *inData, *outData;
