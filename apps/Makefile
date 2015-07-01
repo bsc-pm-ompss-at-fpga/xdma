@@ -28,6 +28,9 @@ gen_task: gen_task.cpp
 matmul: matmul.c
 	$(CC) $(INCLUDES) $(CFLAGS) -Wno-format-security $< -o $@ $(LDFLAGS)
 
+gen_task_thread: gen_task_thread.cpp
+	$(CXX) $(INCLUDES) $(CXXFLAGS) $< -pthread -o $@ $(LDFLAGS)
+
 
 loopback_ompss: loopback_ompss.c
 	$(FPGACC) $(FPGACFLAGS) $< -o $@
