@@ -345,103 +345,6 @@ static void xdma_stop_transfer(struct dma_chan *chan)
 	}
 }
 
-static void xdma_test_transfer(void)
-{
-	const int LENGTH = 1048576;	// max image is 1024x1024 for now!
-
-	int i;
-
-	struct xdma_chan_cfg rx_config;
-	struct xdma_chan_cfg tx_config;
-
-	struct xdma_buf_info tx_buf;
-	struct xdma_buf_info rx_buf;
-
-	struct xdma_transfer rx_trans;
-	struct xdma_transfer tx_trans;
-
-	struct timeval ti, tf;
-
-	memset(xdma_addr, 'Y', LENGTH);	// fill rx with a value
-	xdma_addr[LENGTH - 1] = '\n';
-	memset(xdma_addr + LENGTH, 'Z', LENGTH);	// fill tx with a value
-	xdma_addr[LENGTH + LENGTH - 1] = '\n';
-
-	// display contents before transfer:
-	printk(KERN_DEBUG "<%s> test: rx buffer before transmit:\n",
-	       MODULE_NAME);
-	for (i = 0; i < 10; i++) {
-		printk("%c\t", xdma_addr[i]);
-	}
-	printk("\n");
-
-	// measure time:
-	do_gettimeofday(&ti);
-
-	rx_config.chan = xdma_dev_info[0]->rx_chan;
-	rx_config.coalesc = 1;
-	rx_config.delay = 0;
-	xdma_device_control(&rx_config);
-
-	tx_config.chan = xdma_dev_info[0]->tx_chan;
-	tx_config.coalesc = 1;
-	tx_config.delay = 0;
-	xdma_device_control(&tx_config);
-
-	rx_buf.chan = xdma_dev_info[0]->rx_chan;
-	rx_buf.buf_offset = (u32) 0;
-	rx_buf.buf_size = (u32) LENGTH;
-	rx_buf.dir = XDMA_DEV_TO_MEM;
-	rx_buf.completion = (u32) xdma_dev_info[0]->rx_cmp;
-	xdma_prep_buffer(&rx_buf);
-
-	tx_buf.chan = xdma_dev_info[0]->tx_chan;
-	tx_buf.buf_offset = (u32) LENGTH;
-	tx_buf.buf_size = (u32) LENGTH;
-	tx_buf.dir = XDMA_MEM_TO_DEV;
-	tx_buf.completion = (u32) xdma_dev_info[0]->tx_cmp;
-	xdma_prep_buffer(&tx_buf);
-
-	printk(KERN_DEBUG "<%s> test: xdma_start_transfer rx\n", MODULE_NAME);
-	rx_trans.chan = xdma_dev_info[0]->rx_chan;
-	rx_trans.wait = 0;
-	rx_trans.completion = (u32) xdma_dev_info[0]->rx_cmp;
-	rx_trans.cookie = rx_buf.cookie;
-
-	printk(KERN_DEBUG "<%s> test: xdma_start_transfer tx\n", MODULE_NAME);
-	tx_trans.chan = xdma_dev_info[0]->tx_chan;
-	tx_trans.wait = 1;
-	tx_trans.completion = (u32) xdma_dev_info[0]->tx_cmp;
-	tx_trans.cookie = tx_buf.cookie;
-
-	// measure time to prepare channels:
-	do_gettimeofday(&tf);
-	printk(KERN_DEBUG "<%s> test: time to prepare DMA channels [us]: %ld\n",
-	       MODULE_NAME, (tf.tv_usec - ti.tv_usec));
-	do_gettimeofday(&ti);	// to read transfer time only
-
-	// start transfer:
-	xdma_start_transfer(&rx_trans);
-	xdma_start_transfer(&tx_trans);
-
-	// measure time:
-	do_gettimeofday(&tf);
-	printk(KERN_DEBUG "<%s> test: DMA transfer time [us]: %ld\n",
-	       MODULE_NAME, (tf.tv_usec - ti.tv_usec));
-	printk(KERN_DEBUG "<%s> test: DMA bytes sent: %d\n", MODULE_NAME,
-	       LENGTH);
-	printk(KERN_DEBUG "<%s> test: DMA speed in Mbytes/s: %ld\n",
-	       MODULE_NAME, LENGTH / (tf.tv_usec - ti.tv_usec));
-
-	// display contents after transfer:
-	printk(KERN_DEBUG "<%s> test: rx buffer after transmit:\n",
-	       MODULE_NAME);
-	for (i = 0; i < 10; i++) {
-		printk("%c\t", xdma_addr[i]);
-	}
-	printk("\n");
-}
-
 static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
@@ -524,12 +427,6 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 
 		xdma_stop_transfer((struct dma_chan *)chan);
-		break;
-	case XDMA_TEST_TRANSFER:
-		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_TEST_TRANSFER\n",
-		       MODULE_NAME);
-
-		xdma_test_transfer();
 		break;
     case XDMA_FINISH_TRANSFER:
         PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_FINISHED_TRANSFER\n",
