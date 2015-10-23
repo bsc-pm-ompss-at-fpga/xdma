@@ -118,7 +118,7 @@ extern "C" {
      * \param[in] dev       DMA device to transfer data
      * \param[in] channel   DMA channel to operate
      * \param[out] transfer Pointer to the variable that will hold the transfer handle.
-     *      If the transfer is blocking (wait == 1) the handle will not be valid. This pointer can be set to null
+     *      If the transfer is blocking (XDMA_SUCCESS), this pointer should be NULL
      */
     xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
             xdma_transfer_handle *transfer);
