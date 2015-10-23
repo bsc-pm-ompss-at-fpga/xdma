@@ -210,6 +210,7 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
     trans->completion = buf.completion;
     trans->cookie = buf.cookie;
     trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
+    trans->sg_transfer = (u32)NULL;
     if (ioctl(_fd, XDMA_START_TRANSFER, trans) < 0) {
         perror("Error ioctl start tx trans");
         return XDMA_ERROR;
@@ -229,6 +230,54 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
 //        perror("Error ioctl start rx trans");
 //        return -1;
 //    }
+}
+
+
+xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev,
+        xdma_channel chan, xdma_transfer_handle *transfer) {
+    struct xdma_transfer *tx = (struct xdma_transfer *)transfer;
+    struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)chan;
+    struct xdma_dev *device = (struct xdma_dev*)dev;
+    struct xdma_buf_info buf;
+    buf.chan = channel->chan;
+    buf.completion =
+        (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
+    buf.cookie = (u32) NULL;
+    //When transferring a user space buffer, store address in the offset
+    buf.buf_offset = (u32) buffer;
+    buf.buf_size = (u32) len;
+    buf.dir = channel->dir;
+
+    if (ioctl(_fd, XDMA_PREP_USR_BUF, &buf) < 0) {
+        perror("Error submitting userspace buffer");
+        return XDMA_ERROR;
+    }
+
+    //start transfer
+    //TODO: Refactor code in order to reuse the transfer start&wait between this and
+    //xdmaSubmitKbuffer
+    if (mode == XDMA_SYNC) {
+        tx = (struct xdma_transfer*)alloca(sizeof(struct xdma_transfer));
+    } else {
+        tx = (struct xdma_transfer*)malloc(sizeof(struct xdma_transfer));
+    }
+    tx->chan = channel->chan;
+    tx->completion = buf.completion;
+    tx->cookie = (u32) buf.cookie;
+    tx->wait = mode & XDMA_SYNC;
+    tx->sg_transfer = buf.sg_transfer;
+    if (ioctl(_fd, XDMA_START_TRANSFER, tx) < 0) {
+        perror("Error starting SG transfer");
+        if (mode == XDMA_ASYNC) {
+            free(tx);
+        }
+        return XDMA_ERROR;
+    }
+
+    if (mode == XDMA_ASYNC) {
+        *transfer = (xdma_transfer_handle)tx;
+    }
+    return XDMA_SUCCESS;
 }
 
 static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, xdma_xfer_mode mode) {
@@ -266,9 +315,18 @@ xdma_status xdmaWaitTransfer(xdma_transfer_handle transfer){
 
 xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer){
     struct xdma_transfer *trans = (struct xdma_transfer *)*transfer;
+    int status;
 
     if (!trans) {
         return XDMA_SUCCESS;
+    }
+    if (trans->sg_transfer) {
+        //transfer is a SG one, some kernel resources should be released
+        status = ioctl(_fd, XDMA_RELEASE_USR_BUF, (unsigned long)trans->sg_transfer);
+        if (status) {
+            perror("Error releasing kernel SG resources");
+            printf("  from transfer %lx\n", *transfer);
+        }
     }
 
     free(trans);

@@ -124,6 +124,19 @@ extern "C" {
             xdma_transfer_handle *transfer);
 
     /*!
+     * Submit a user allocated buffer (i.e. using malloc) to be transferred through DMA
+     * \param[in] buffer    Buffer to be transferred
+     * \param[in] len       Buffer length
+     * \param[in] mode      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
+     *                      for sync (blocking) or async (non blocking) transfers
+     * \param[in] dev       DMA device to transfer data
+     * \param[in] channel   DMA channel to operate
+     * \param[out] transfer Pointer to the variable that will hold the transfer handle.
+     *      If the transfer is blocking (XDMA_SUCCESS), this pointer should be NULL
+     */
+    xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode,
+            xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
+    /*!
      * Test the status of a transfer (finished, pending or error)
      * \param[in] transfer  DMA transfer handle to be tested
      * \return              Transfer status

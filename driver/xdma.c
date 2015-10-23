@@ -32,6 +32,13 @@
 static dev_t dev_num;		// Global variable for the device number
 static struct cdev c_dev;	// Global variable for the character device structure
 static struct class *cl;	// Global variable for the device class
+static struct device *dma_dev;
+
+struct xdma_sg_mem {
+	struct sg_table sg_tbl;
+	unsigned long npages;
+	enum dma_transfer_direction dir;
+};
 
 char *xdma_addr;
 dma_addr_t xdma_handle;
@@ -181,6 +188,152 @@ static void xdma_device_control(struct xdma_chan_cfg *chan_cfg)
 	}
 }
 
+static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
+{
+	int ret, i;
+	unsigned int nr_pages, start, len, n_pg;
+	struct page **page_list;
+	struct scatterlist *sg, *sg_start;
+	struct dma_chan *chan;
+	struct dma_async_tx_descriptor *tx_desc;
+	struct completion *cmp;
+	enum dma_transfer_direction dir;
+	enum dma_ctrl_flags flags;
+	dma_cookie_t cookie;
+	struct xdma_sg_mem *mem;
+	unsigned long cur_base;
+	unsigned long offset;
+	unsigned long pg_left;
+	int fp_offset, pg_len;
+	int first_page;
+
+	//TODO: Free resources in case of error in order to prevent memory leaks
+
+	mem = kzalloc(sizeof(struct xdma_sg_mem), GFP_KERNEL);
+	cmp = kmalloc(sizeof(dma_cookie_t), GFP_KERNEL);
+	//reuse buffer info offset as address
+	start = buf_info->buf_offset;
+	len = buf_info->buf_size;
+	chan = (struct dma_chan *)buf_info->chan;
+	dir = xdma_to_dma_direction(buf_info->dir);
+	flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
+
+	PRINT_DBG(KERN_DEBUG "Pinning buffer @%x;%u\n", start, len);
+
+	//Check that the address is valid
+	if (!access_ok(void, start, len)) {
+		printk(KERN_DEBUG "<%s> Cannot access buffer @%x:%u\n",
+				MODULE_NAME, start, len);
+		return -EFAULT;
+	}
+	if (len == 0) {
+		printk(KERN_DEBUG "<%s> Trying to transfer buffer with length 0 @%x\n",
+				MODULE_NAME, start);
+		return -EINVAL;
+	}
+
+	page_list = (struct page **) __get_free_page(GFP_KERNEL);
+	if (!page_list) {
+		kfree(mem);
+		kfree(cmp);
+		printk(KERN_WARNING "<%s> Unable to allocate page list for buffer %x\n",
+				MODULE_NAME, start);
+		return -ENOMEM;
+	}
+	offset = start & ~PAGE_MASK;
+	nr_pages = ((((start + len -1) & PAGE_MASK) - (start & PAGE_MASK)) >> PAGE_SHIFT) + 1;
+	PRINT_DBG("Pinning %u pages @%x+%lu\n", nr_pages, start, offset);
+
+	ret = sg_alloc_table(&mem->sg_tbl, nr_pages, GFP_KERNEL);
+	if (ret) {
+		printk("<%s> Coud not allocate SG table for buffer %x\n",
+				MODULE_NAME, start);
+		return -ENOMEM;
+	}
+
+	sg_start = mem->sg_tbl.sgl;
+	cur_base = start;
+	pg_left = nr_pages;
+	first_page = 1;
+	while (pg_left) {
+		n_pg = min_t(unsigned long, pg_left,
+				PAGE_SIZE / sizeof(struct page *));
+		ret = get_user_pages_fast(cur_base, n_pg, 1, page_list);
+		PRINT_DBG("%d\n", ret);
+		if (ret < 0) {
+			//FIXME: free resources in case of error
+			printk(KERN_ERR "Error getting user pages from %lu\n", cur_base);
+			return ret;
+		}
+
+		cur_base += ret*PAGE_SIZE;
+		pg_left -= ret;
+
+		for_each_sg(sg_start, sg, ret, i) {
+			fp_offset = 0;
+			pg_len = PAGE_SIZE;
+			//Set offset for first page
+			if (first_page) {
+				fp_offset = offset;
+				pg_len -= offset;
+				first_page = 0;
+			}
+			//Set size for last page
+			if (pg_left == 0 && i == ret-1) {
+				pg_len -= PAGE_SIZE - ((len + offset) % PAGE_SIZE);
+			}
+			sg_set_page(sg, page_list[i], pg_len, fp_offset);
+		}
+		sg_start = sg;
+	}
+	PRINT_DBG("Mapping %u pages and preparing transfer\n", nr_pages);
+	dma_map_sg(dma_dev, mem->sg_tbl.sgl, nr_pages, dir);
+	tx_desc = dmaengine_prep_slave_sg(chan, mem->sg_tbl.sgl, nr_pages, dir, flags);
+
+	free_page((unsigned long)page_list);
+
+	//submit transfer
+	init_completion(cmp);
+	tx_desc->callback = xdma_sync_callback;
+	tx_desc->callback_param = cmp;
+	cookie = dmaengine_submit(tx_desc);
+	if (dma_submit_error(cookie)) {
+		printk(KERN_ERR "<%s> Error: tx_submit error\n",
+				MODULE_NAME);
+		ret = -1;
+	}
+	buf_info->cookie = cookie;
+	buf_info->completion = (u32)cmp;
+	buf_info->sg_transfer = (u32)mem;
+
+	mem->npages = nr_pages;
+	mem->dir = dir;
+
+	PRINT_DBG("Buffer prepared cmp=%p ck=%d\n", cmp, cookie);
+	PRINT_DBG("buffer: %p:%d submitted\n", (void*)start, len);
+
+	return 0;
+}
+
+static int xdma_user_buffer_release(struct xdma_sg_mem *mem)
+{
+	struct scatterlist *sg;
+	struct page *page;
+	int i;
+
+	//TODO: Error checking
+	dma_unmap_sg(dma_dev, mem->sg_tbl.sgl, mem->npages, mem->dir);
+
+	for_each_sg(mem->sg_tbl.sgl, sg, mem->npages, i) {
+		page = sg_page(sg);
+		put_page(page);
+	}
+	sg_free_table(&mem->sg_tbl);
+	kfree(mem);
+	return 0;
+
+}
+
 static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 {
 	int ret = 0;
@@ -207,6 +360,7 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
     }
     init_completion(cmp);
     buf_info->completion = (u32)cmp;
+	buf_info->sg_transfer = (u32)NULL;
 
     //init_completion(cmp);
     //Init completion when submitting the transfer
@@ -437,6 +591,26 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
         ret = xdma_finish_transfer(&trans);
         break;
+	case XDMA_PREP_USR_BUF:
+		PRINT_DBG(KERN_DEBUG "<%s> ioctl; XDMA_PREP_USR_BUFFER\n", MODULE_NAME);
+		if (copy_from_user((void *)&buf_info,
+					(const void __user *)arg,
+					sizeof(struct xdma_buf_info)))
+			return -EFAULT;
+
+		ret = xdma_prep_user_buffer(&buf_info);
+
+		if (copy_to_user((struct xdma_buf_info *)arg,
+					&buf_info, sizeof(struct xdma_buf_info)))
+			return -EFAULT;
+		break;
+	case XDMA_RELEASE_USR_BUF:
+		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_RELEASE_USR_BUFFER\n", MODULE_NAME);
+		// The user parameter is already a pointer to the xdma_sg_mem structure
+		ret = xdma_user_buffer_release((struct xdma_sg_mem *)arg);
+
+		break;
+
 	default:
         printk(KERN_DEBUG "<%s> ioctl: WARNING unknown ioctl command %d\n", MODULE_NAME, cmd);
 		break;
@@ -560,7 +734,9 @@ static int __init xdma_probe(void)
 		unregister_chrdev_region(dev_num, 1);
 		return -1;
 	}
-	if (device_create(cl, NULL, dev_num, NULL, MODULE_NAME) == NULL) {
+
+	dma_dev = device_create(cl, NULL, dev_num, NULL, MODULE_NAME);
+	if (dma_dev == NULL) {
 		class_destroy(cl);
 		unregister_chrdev_region(dev_num, 1);
 		return -1;
