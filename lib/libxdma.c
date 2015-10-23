@@ -182,23 +182,9 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
         return XDMA_ERROR;
     }
 
-//    //prepare input buffer
-//    struct xdma_buf_info tx_buf;
-//    tx_buf.chan = dev.tx_chan;
-//    tx_buf.completion = dev.tx_cmp;
-//    tx_buf.cookie = (u32) NULL;
-//    tx_buf.buf_offset = (u32) in_offset;
-//    tx_buf.buf_size = (u32) in_len;
-//    tx_buf.dir = XDMA_MEM_TO_DEV;
-//    if (ioctl(fd, XDMA_PREP_BUF, &tx_buf) < 0) {
-//        perror("Error ioctl set tx buf");
-//        return -1;
-//    }
-
     //start input transfer host->dev
     struct xdma_transfer *trans;
-    //May not be a good thing for the performance to allocate things for each
-    //transfer, but I did not come up with anythong better
+    //May not be a good thing for the performance to allocate things for each transfer
     if (mode == XDMA_SYNC) {
         //If we are waiting for the transfer to finish, we can allocate
         //the data structure in the stack
@@ -218,17 +204,6 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
         *transfer = (xdma_transfer_handle)trans;
     }
     return XDMA_SUCCESS;
-
-//    //start output transfer dev->host
-//    struct xdma_transfer rx_trans;
-//    rx_trans.chan = dev.rx_chan;
-//    rx_trans.completion = dev.rx_cmp;
-//    rx_trans.cookie = rx_buf.cookie;
-//    rx_trans.wait = 0;
-//    if (ioctl(fd, XDMA_START_TRANSFER, &rx_trans) < 0) {
-//        perror("Error ioctl start rx trans");
-//        return -1;
-//    }
 }
 
 static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, xdma_xfer_mode mode) {
