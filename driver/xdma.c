@@ -42,6 +42,8 @@ struct xdma_sg_mem {
 
 char *xdma_addr;
 dma_addr_t xdma_handle;
+static struct xdma_kern_buf *last_dma_handle;
+struct kmem_cache *buf_handle_cache;
 
 struct xdma_dev *xdma_dev_info[MAX_DEVICES + 1];
 u32 num_devices;
@@ -101,23 +103,24 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	int result;
 	unsigned long requested_size;
+	dma_addr_t dma_handle;
+	void *buffer_addr;
+
 	requested_size = vma->vm_end - vma->vm_start;
 
-	PRINT_DBG(KERN_DEBUG "<%s> file: mmap()\n", MODULE_NAME);
-	PRINT_DBG(KERN_DEBUG
-	       "<%s> file: memory size reserved: %d, mmap size requested: %lu\n",
-	       MODULE_NAME, DMA_LENGTH, requested_size);
+	PRINT_DBG(MODULE_NAME "Request %lu bytes to kernel\n", requested_size);
 
-	if (requested_size > DMA_LENGTH) {
-		printk(KERN_ERR "<%s> Error: %d reserved != %lu requested)\n",
-		       MODULE_NAME, DMA_LENGTH, requested_size);
-
-		return -EAGAIN;
+	buffer_addr = dma_zalloc_coherent(NULL, requested_size, &dma_handle,
+			GFP_KERNEL);
+	if (!buffer_addr) {
+		printk(KERN_ERR "<%s> Error: allocating dma memory failed\n",
+				MODULE_NAME);
+		return -ENOMEM;
 	}
 
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 	result = remap_pfn_range(vma, vma->vm_start,
-				 virt_to_pfn(xdma_addr),
+				 virt_to_pfn(buffer_addr),
 				 requested_size, vma->vm_page_prot);
 
 	if (result) {
@@ -128,8 +131,30 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EAGAIN;
 	}
 
+	//last_dma_handle = kmalloc(sizeof(struct xdma_kern_buf));
+	last_dma_handle = kmem_cache_alloc(buf_handle_cache, GFP_KERNEL);
+	last_dma_handle->addr = buffer_addr;
+	last_dma_handle->dma_addr = dma_handle;
+	last_dma_handle->size = requested_size;
+
 	return 0;
 }
+
+struct xdma_kern_buf* xdma_get_last_kern_buff(void)
+{
+	return last_dma_handle;
+}
+
+//Return the size of the buffer to be reed in order to return to the user for
+//unmapping the buffer from user space
+static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
+{
+	size_t size = buff_desc->size;
+	kmem_cache_free(buf_handle_cache, buff_desc);
+	return size;
+}
+
+//TODO implement unmap in order to deallocate memory
 
 static void xdma_get_dev_info(u32 device_id, struct xdma_dev *dev)
 {
@@ -212,7 +237,7 @@ static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 	mem = kzalloc(sizeof(struct xdma_sg_mem), GFP_KERNEL);
 	cmp = kmalloc(sizeof(dma_cookie_t), GFP_KERNEL);
 	//reuse buffer info offset as address
-	start = buf_info->buf_offset;
+	start = buf_info->address;
 	len = buf_info->buf_size;
 	chan = (struct dma_chan *)buf_info->chan;
 	dir = xdma_to_dma_direction(buf_info->dir);
@@ -345,7 +370,9 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 	struct dma_async_tx_descriptor *chan_desc;
 	struct completion *cmp;
 	dma_cookie_t cookie;
+	struct xdma_kern_buf *buf_desc;
 
+	buf_desc = (struct xdma_kern_buf *)buf_info->address;
 	chan = (struct dma_chan *)buf_info->chan;
 	//cmp = (struct completion *)buf_info->completion;
     //Create a new completion for every operation
@@ -365,7 +392,9 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
     //init_completion(cmp);
     //Init completion when submitting the transfer
 
-	buf = xdma_handle + buf_info->buf_offset;
+	//TODO: Check that the buffer (or sub-buffer) does not overrun
+	//the original buffer
+	buf = buf_desc->dma_addr + buf_info->buf_offset;
 	len = buf_info->buf_size;
 	dir = xdma_to_dma_direction(buf_info->dir);
 
@@ -508,6 +537,7 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct xdma_transfer trans;
 	u32 devices;
 	u32 chan;
+	struct xdma_kern_buf *kbuff_ptr;
 
 	switch (cmd) {
 	case XDMA_GET_NUM_DEVICES:
@@ -610,6 +640,26 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		ret = xdma_user_buffer_release((struct xdma_sg_mem *)arg);
 
 		break;
+	case XDMA_GET_LAST_KBUF:
+		if (!access_ok(void*, arg, sizeof(void*))) {
+			printk(KERN_DEBUG "<%s> Cannot access user variable @0x%lx",
+					MODULE_NAME, arg);
+			return -EFAULT;
+		}
+		kbuff_ptr = xdma_get_last_kern_buff();
+		if (!kbuff_ptr)
+			ret = -EFAULT;
+		put_user((unsigned long)kbuff_ptr, (unsigned long __user *)arg);
+		break;
+	case XDMA_RELEASE_KBUF:
+		if (!access_ok(void*, arg, sizeof(void*))) {
+			printk(KERN_DEBUG "<%s> Cannot access user variable @0x%lx",
+					MODULE_NAME, arg);
+			return -EFAULT;
+		}
+		get_user(kbuff_ptr, (struct xdma_kern_buf **)arg);
+		ret = xdma_release_kernel_buffer(kbuff_ptr);
+		break;
 
 	default:
         printk(KERN_DEBUG "<%s> ioctl: WARNING unknown ioctl command %d\n", MODULE_NAME, cmd);
@@ -692,6 +742,10 @@ static void xdma_init(void)
 			xdma_add_dev_info(tx_chan, rx_chan);
 		}
 	}
+	//slab cache for the buffer descriptors
+	buf_handle_cache = kmem_cache_create("DMA buffer descriptor cache",
+			sizeof(struct xdma_kern_buf),
+			0, 0, NULL);
 }
 
 static void xdma_cleanup(void)
@@ -719,6 +773,7 @@ static void xdma_cleanup(void)
 
 		}
 	}
+	kmem_cache_destroy(buf_handle_cache);
 }
 
 static int __init xdma_probe(void)

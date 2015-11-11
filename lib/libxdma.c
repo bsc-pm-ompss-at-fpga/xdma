@@ -24,7 +24,6 @@
 #define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
 
 static int _fd;
-static uint8_t *_map;		/* mmapped array of char's */
 
 static int _numDevices;
 static struct xdma_dev _devices[MAX_DEVICES];
@@ -47,20 +46,10 @@ xdma_status xdmaOpen() {
         return XDMA_ERROR;
     }
 
-    _map = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, _fd, 0);
-    if (_map == MAP_FAILED) {
-        close(_fd);
-        perror("Error mmapping the file");
-        return XDMA_ERROR;
-    }
     return XDMA_SUCCESS;
 }
 
 xdma_status xdmaClose() {
-    if (munmap(_map, MAP_SIZE) == -1) {
-        perror("Error un-mmapping kernel memory");
-        return XDMA_ERROR;
-    }
     if (close(_fd) == -1) {
         perror("Error closing device file");
         return XDMA_ERROR;
@@ -146,23 +135,46 @@ xdma_status xdmaCloseChannel(xdma_channel *channel) {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaAllocateKernelBuffer(void **buffer, size_t len) {
-    if (len > MAP_SIZE - _kUsedSpace) {
-        //if there is not eough left space
-        fprintf(stderr, "Error allocating kernel buffer\n");
+xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, size_t len) {
+    //TODO: Check that mmap + ioctl are performet atomically
+    unsigned int ret;
+    unsigned int status;
+    *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, 0);
+    if (!buffer) {
+        perror("Error allocating kernel buffer: mmap failed");
+        //TODO: return proper error codes (ENOMEM, etc)
         return XDMA_ERROR;
     }
-    *buffer = _map + _kUsedSpace;
-    _kUsedSpace += len;
+    //get the handle for the allocated buffer
+    status = ioctl(_fd, XDMA_GET_LAST_KBUF, &ret);
+    if (status) {
+        perror("Error allocating pinned memory");
+        munmap(buffer, len);
+        return XDMA_ERROR;
+    }
+    *handle = (xdma_buf_handle)ret;
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaFreeKernelBuffers() {
-    _kUsedSpace = 0;
+xdma_status xdmaFreeKernelBuffer(void *buffer, xdma_buf_handle handle) {
+
+    int size;
+    size = ioctl(_fd, XDMA_RELEASE_KBUF, &handle);
+    if (size <= 0) {
+        perror("could not release pinned buffer");
+        return XDMA_ERROR;
+    }
+
+    if (munmap(buffer, size)) {
+        perror("Failed to unmap pinned buffer");
+        return XDMA_ERROR;
+    }
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel ch, xdma_transfer_handle *transfer) {
+xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int offset,
+        xdma_xfer_mode mode, xdma_device dev, xdma_channel ch,
+        xdma_transfer_handle *transfer) {
 
     struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)ch;
     struct xdma_dev *device = (struct xdma_dev*)dev;
@@ -173,7 +185,9 @@ xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdm
     buf.completion =
         (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
     buf.cookie = (u32) NULL;
-    buf.buf_offset = (u32) ((uint8_t *)buffer - _map);
+    //Use address to store the buffer descriptor handle
+    buf.address = (u32) buffer;
+    buf.buf_offset = (u32) offset;
     buf.buf_size = (u32) len;
     buf.dir = channel->dir;
 
@@ -218,8 +232,7 @@ xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma
     buf.completion =
         (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
     buf.cookie = (u32) NULL;
-    //When transferring a user space buffer, store address in the offset
-    buf.buf_offset = (u32) buffer;
+    buf.address = (u32) buffer;
     buf.buf_size = (u32) len;
     buf.dir = channel->dir;
 

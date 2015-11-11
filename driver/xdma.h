@@ -23,6 +23,9 @@ extern "C" {
 #define XDMA_FINISH_TRANSFER _IO(XDMA_IOCTL_BASE, 7)
 #define XDMA_PREP_USR_BUF	_IO(XDMA_IOCTL_BASE, 8)
 #define XDMA_RELEASE_USR_BUF	_IO(XDMA_IOCTL_BASE, 9)
+#define XDMA_GET_LAST_KBUF	_IO(XDMA_IOCTL_BASE, 10)
+#define XDMA_RELEASE_KBUF	_IO(XDMA_IOCTL_BASE, 11)
+
 
 	enum xdma_direction {
 		XDMA_MEM_TO_DEV,
@@ -57,6 +60,7 @@ extern "C" {
 		u32 completion;	/* (struct completion *) callback_param */
 
 		dma_cookie_t cookie;
+		u32 address;
 		u32 buf_offset;
 		u32 buf_size;
 		enum xdma_direction dir;
@@ -70,6 +74,12 @@ extern "C" {
 		dma_cookie_t cookie;
 		u32 wait;	/* true/false */
         u32 sg_transfer; /* pointer to internal SG structure */
+	};
+
+	struct xdma_kern_buf {
+		void * addr;
+		unsigned long dma_addr;
+		size_t size;
 	};
 
 #ifdef __cplusplus

@@ -24,6 +24,7 @@ extern "C" {
 		XDMA_WAIT_BOTH = (1 << 1) | (1 << 0),
 	};
 
+    //TODO: Proper error codes
     /**
      * xdma status
      */
@@ -52,6 +53,7 @@ extern "C" {
     typedef long unsigned int xdma_device;
     typedef long unsigned int xdma_channel;
     typedef long unsigned int xdma_transfer_handle;
+    typedef void* xdma_buf_handle;
 
     /*!
      * Initialize the DMA userspace library & userspace library
@@ -102,25 +104,30 @@ extern "C" {
      * \param[out] buffer   Pointer to the allocated buffer
      * \param[in] len       Buffer length in bytes
      */
-    xdma_status xdmaAllocateKernelBuffer(void **buffer, size_t len);
+    xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, size_t len);
 
     /*!
-     * Free ALL kernel allocated buffers
+     * Free a pinned buffer allocated in kernel space and unmap the region from user space
+     * \param[in] buffer    Address of the bointer to bee freed
+     * \param[in] handle    Buffer handle to be freed
      */
-    xdma_status xdmaFreeKernelBuffers();
+    xdma_status xdmaFreeKernelBuffer(void *buffer, xdma_buf_handle handle);
 
     /*!
-     * Submit a kernel allocated buffer to be transferred through DMA
-     * \param[in] buffer    Buffer to be transferred
+     * Submit a pinned buffer allocated in kernel space
+     * \param[in] buffer    Buffer handle
      * \param[in] len       Buffer length
+     * \param[in] offset    Transfer offset
      * \param[in] mode      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
      *                      for sync (blocking) or async (non blocking) transfers
      * \param[in] dev       DMA device to transfer data
      * \param[in] channel   DMA channel to operate
      * \param[out] transfer Pointer to the variable that will hold the transfer handle.
      *      If the transfer is blocking (XDMA_SUCCESS), this pointer should be NULL
+     * \return              XDMA_SUCCESS on success, XDMA_ERROR otherwise
      */
-    xdma_status xdmaSubmitKBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
+    xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int offset,
+            xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
             xdma_transfer_handle *transfer);
 
     /*!
