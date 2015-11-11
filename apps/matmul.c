@@ -59,10 +59,11 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    xdmaAllocateKernelBuffer((void*)&a, M_SIZE*M_SIZE*sizeof(float));
-    xdmaAllocateKernelBuffer((void*)&b, M_SIZE*M_SIZE*sizeof(float));
-    xdmaAllocateKernelBuffer((void*)&c, M_SIZE*M_SIZE*sizeof(float));
-    xdmaAllocateKernelBuffer((void*)&result, M_SIZE*M_SIZE*sizeof(float));
+    xdma_buf_handle aHandle, bHandle, cHandle, resultHandle;
+    xdmaAllocateKernelBuffer((void*)&a, &aHandle, M_SIZE*M_SIZE*sizeof(float));
+    xdmaAllocateKernelBuffer((void*)&b, &bHandle, M_SIZE*M_SIZE*sizeof(float));
+    xdmaAllocateKernelBuffer((void*)&c, &cHandle, M_SIZE*M_SIZE*sizeof(float));
+    xdmaAllocateKernelBuffer((void*)&result, &resultHandle, M_SIZE*M_SIZE*sizeof(float));
 
     cref = malloc(M_SIZE*M_SIZE*sizeof(float));
 
@@ -91,13 +92,17 @@ int main(int argc, char *argv[]) {
 
     //transfer data
     xdma_transfer_handle aTrans, bTrans, cTrans, outTrans;
-    status = xdmaSubmitKBuffer(a, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, inChannel, &aTrans);
+    status = xdmaSubmitKBuffer(aHandle, M_SIZE*M_SIZE*sizeof(float), 0, XDMA_ASYNC,
+            dev, inChannel, &aTrans);
         checkError(status, "Error submitting A matrix\n");
-    status = xdmaSubmitKBuffer(b, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, inChannel, &bTrans);
+    status = xdmaSubmitKBuffer(bHandle, M_SIZE*M_SIZE*sizeof(float), 0, XDMA_ASYNC,
+            dev, inChannel, &bTrans);
         checkError(status, "Error submitting B matrix\n");
-    status = xdmaSubmitKBuffer(c, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, inChannel, &cTrans);
+    status = xdmaSubmitKBuffer(cHandle, M_SIZE*M_SIZE*sizeof(float), 0, XDMA_ASYNC,
+            dev, inChannel, &cTrans);
         checkError(status, "Error submitting C matrix\n");
-    status = xdmaSubmitKBuffer(result, M_SIZE*M_SIZE*sizeof(float), XDMA_ASYNC, dev, outChannel, &outTrans);
+    status = xdmaSubmitKBuffer(resultHandle, M_SIZE*M_SIZE*sizeof(float), 0, XDMA_ASYNC,
+            dev, outChannel, &outTrans);
         checkError(status, "Error submitting result matrix\n");
 
     status = xdmaWaitTransfer(aTrans);
@@ -145,6 +150,12 @@ int main(int argc, char *argv[]) {
     //shutdown
 
     free(cref);
+    xdmaFreeKernelBuffer(a, aHandle);
+    xdmaFreeKernelBuffer(b, bHandle);
+    xdmaFreeKernelBuffer(c, cHandle);
+    xdmaFreeKernelBuffer(result, resultHandle);
+    //in =  malloc(len*sizeof(int));
+    //out = malloc(len*sizeof(int));
     xdmaCloseChannel(&inChannel);
     xdmaCloseChannel(&outChannel);
 

@@ -38,11 +38,10 @@ int main(int argc, char *argv[]) {
     }
 
     int *inData, *outData;
-    //in =  malloc(len*sizeof(int));
-    //out = malloc(len*sizeof(int));
+    xdma_buf_handle inHandle, outHandle;
     //Buffers must be allocated in kernel space mapped memory
-    xdmaAllocateKernelBuffer((void **)&inData, len*sizeof(int));
-    xdmaAllocateKernelBuffer((void **)&outData, len*sizeof(int));
+    xdmaAllocateKernelBuffer((void **)&inData, &inHandle, len*sizeof(int));
+    xdmaAllocateKernelBuffer((void **)&outData, &outHandle, len*sizeof(int));
 
     for (int i=0; i<len; i++) {
         inData[i] = TEST_VAL;
@@ -75,11 +74,13 @@ int main(int argc, char *argv[]) {
     }
 
     xdma_transfer_handle inTransfer, outTransfer;
-    status = xdmaSubmitKBuffer(inData, len*sizeof(int), XDMA_ASYNC, dev, inChannel, &inTransfer);
+    status = xdmaSubmitKBuffer(inHandle, len*sizeof(int), 0, XDMA_ASYNC, dev, inChannel,
+            &inTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting input transfer\n");
     }
-    status = xdmaSubmitKBuffer(outData, len*sizeof(int), XDMA_ASYNC, dev, outChannel, &outTransfer);
+    status = xdmaSubmitKBuffer(outHandle, len*sizeof(int), 0, XDMA_ASYNC, dev, outChannel,
+            &outTransfer);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error submitting output transfer\n");
     }
@@ -111,6 +112,9 @@ int main(int argc, char *argv[]) {
     }
     xdmaCloseChannel(&inChannel);
     xdmaCloseChannel(&outChannel);
+
+    xdmaFreeKernelBuffer(inData, inHandle);
+    xdmaFreeKernelBuffer(outData, outHandle);
 
     xdmaClose();
 
