@@ -652,6 +652,7 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		put_user((unsigned long)kbuff_ptr, (unsigned long __user *)arg);
 		break;
 	case XDMA_RELEASE_KBUF:
+		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_RELEASE_KBUFF\n", MODULE_NAME);
 		if (!access_ok(void*, arg, sizeof(void*))) {
 			printk(KERN_DEBUG "<%s> Cannot access user variable @0x%lx",
 					MODULE_NAME, arg);
