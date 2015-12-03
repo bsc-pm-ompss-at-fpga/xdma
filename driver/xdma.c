@@ -150,6 +150,7 @@ struct xdma_kern_buf* xdma_get_last_kern_buff(void)
 static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
+    dma_free_coherent(NULL, size, buff_desc->addr, buff_desc->dma_addr);
 	kmem_cache_free(buf_handle_cache, buff_desc);
 	return size;
 }
