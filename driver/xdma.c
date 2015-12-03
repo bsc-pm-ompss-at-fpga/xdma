@@ -40,8 +40,6 @@ struct xdma_sg_mem {
 	enum dma_transfer_direction dir;
 };
 
-char *xdma_addr;
-dma_addr_t xdma_handle;
 static struct xdma_kern_buf *last_dma_handle;
 struct kmem_cache *buf_handle_cache;
 
@@ -82,21 +80,14 @@ static ssize_t xdma_read(struct file *f, char __user * buf, size_t
 {
 	PRINT_DBG(KERN_DEBUG "<%s> file: read()\n", MODULE_NAME);
 
-	return simple_read_from_buffer(buf, len, off, xdma_addr, DMA_LENGTH);
+	return -ENOSYS;
 }
 
 static ssize_t xdma_write(struct file *f, const char __user * buf,
 			  size_t len, loff_t * off)
 {
 	PRINT_DBG(KERN_DEBUG "<%s> file: write()\n", MODULE_NAME);
-	if (len > (DMA_LENGTH - 1))
-		return -EINVAL;
-
-	if (copy_from_user(xdma_addr, buf, len))
-		return -EFAULT;
-
-	xdma_addr[len] = '\0';
-	return len;
+	return -ENOSYS;
 }
 
 static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
@@ -425,7 +416,7 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 		buf_info->cookie = cookie;
 	}
     PRINT_DBG("Buffer prepared cmp=%p\n", cmp);
-    PRINT_DBG("buffer: %p:%d, %x\n", (void*)buf, len, (int)*xdma_addr);
+    PRINT_DBG("buffer: %p:%d, %x\n", (void*)buf, len, (int)buf_desc->dma_addr);
 
 	return ret;
 }
@@ -806,17 +797,6 @@ static int __init xdma_probe(void)
 		return -1;
 	}
 
-	/* allocate mmap area */
-	xdma_addr =
-	    dma_zalloc_coherent(NULL, DMA_LENGTH, &xdma_handle, GFP_KERNEL);
-
-	if (!xdma_addr) {
-		printk(KERN_ERR "<%s> Error: allocating dma memory failed\n",
-		       MODULE_NAME);
-
-		return -ENOMEM;
-	}
-
 	return 0;
 }
 
@@ -828,11 +808,6 @@ static void __exit xdma_exit(void)
 	class_destroy(cl);
 	unregister_chrdev_region(dev_num, 1);
 	printk(KERN_DEBUG "<%s> exit: unregistered\n", MODULE_NAME);
-
-	/* free mmap area */
-	if (xdma_addr) {
-		dma_free_coherent(NULL, DMA_LENGTH, xdma_addr, xdma_handle);
-	}
 }
 
 module_init(xdma_probe);
