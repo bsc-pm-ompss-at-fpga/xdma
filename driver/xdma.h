@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <linux/types.h>
+#include <linux/list.h>
 #include <asm/ioctl.h>
 
 #define MODULE_NAME	"xdma"
@@ -80,6 +81,7 @@ extern "C" {
 		void * addr;
 		unsigned long dma_addr;
 		size_t size;
+        struct list_head desc_list;
 	};
 
 #ifdef __cplusplus

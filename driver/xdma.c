@@ -21,7 +21,7 @@
 #include <linux/amba/xilinx_dma.h>
 #include <linux/platform_device.h>
 
-#define DEBUG_PRINT 1
+//#define DEBUG_PRINT 1
 
 #ifdef DEBUG_PRINT
 #define PRINT_DBG(...) printk( __VA_ARGS__)
@@ -48,6 +48,11 @@ u32 num_devices;
 static int opened;
 static void xdma_init(void);
 static void xdma_cleanup(void);
+
+/* save a list of dma buffers so they an be deleted in case the application
+ * does not free them (in case of an abnormal abort)
+ */
+static struct list_head desc_list;
 
 static int xdma_open(struct inode *i, struct file *f)
 {
@@ -128,6 +133,8 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	last_dma_handle->dma_addr = dma_handle;
 	last_dma_handle->size = requested_size;
 
+    list_add(&last_dma_handle->desc_list, &desc_list);
+
 	return 0;
 }
 
@@ -141,6 +148,7 @@ struct xdma_kern_buf* xdma_get_last_kern_buff(void)
 static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
+    list_del(&buff_desc->desc_list);
     dma_free_coherent(NULL, size, buff_desc->addr, buff_desc->dma_addr);
 	kmem_cache_free(buf_handle_cache, buff_desc);
 	return size;
@@ -744,6 +752,7 @@ static void xdma_init(void)
 static void xdma_cleanup(void)
 {
 	int i;
+    struct xdma_kern_buf *bdesc;
 	num_devices = 0;
 
 	for (i = 0; i < MAX_DEVICES; i++) {
@@ -763,9 +772,15 @@ static void xdma_cleanup(void)
 			if (xdma_dev_info[i]->rx_cmp)
 				kfree((struct completion *)
 				      xdma_dev_info[i]->rx_cmp);
-
 		}
 	}
+
+    //free all allocated dma buffers
+    while (!list_empty(&desc_list)) {
+        bdesc = list_first_entry(&desc_list, struct xdma_kern_buf, desc_list);
+        //this frees the buffer and deletes its descriptor from the list
+        xdma_release_kernel_buffer(bdesc);
+    }
 	kmem_cache_destroy(buf_handle_cache);
 }
 
@@ -796,6 +811,8 @@ static int __init xdma_probe(void)
 		unregister_chrdev_region(dev_num, 1);
 		return -1;
 	}
+
+    INIT_LIST_HEAD(&desc_list);
 
 	return 0;
 }
