@@ -40,6 +40,13 @@ struct xdma_sg_mem {
 	enum dma_transfer_direction dir;
 };
 
+struct xdma_kern_buf {
+	void * addr;
+	unsigned long dma_addr;
+	size_t size;
+	struct list_head desc_list;
+};
+
 static struct xdma_kern_buf *last_dma_handle;
 struct kmem_cache *buf_handle_cache;
 

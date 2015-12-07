@@ -6,7 +6,6 @@ extern "C" {
 #endif
 
 #include <linux/types.h>
-#include <linux/list.h>
 #include <asm/ioctl.h>
 
 #define MODULE_NAME	"xdma"
@@ -77,12 +76,6 @@ extern "C" {
         u32 sg_transfer; /* pointer to internal SG structure */
 	};
 
-	struct xdma_kern_buf {
-		void * addr;
-		unsigned long dma_addr;
-		size_t size;
-        struct list_head desc_list;
-	};
 
 #ifdef __cplusplus
 }
