@@ -140,7 +140,7 @@ xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, siz
     unsigned int ret;
     unsigned int status;
     *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, 0);
-    if (!buffer) {
+    if (*buffer == MAP_FAILED) {
         perror("Error allocating kernel buffer: mmap failed");
         //TODO: return proper error codes (ENOMEM, etc)
         return XDMA_ERROR;
