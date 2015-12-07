@@ -102,6 +102,7 @@ extern "C" {
     /*!
      * Allocate a buffer in kernel space to be transferred to a xDMA device
      * \param[out] buffer   Pointer to the allocated buffer
+     * \param[out] handle   DMA buffer handle
      * \param[in] len       Buffer length in bytes
      */
     xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, size_t len);
