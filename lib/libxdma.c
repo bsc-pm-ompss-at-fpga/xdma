@@ -16,6 +16,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <alloca.h>
+#include <pthread.h>
 
 #define BUS_IN_BYTES 4
 #define BUS_BURST 16
@@ -29,7 +30,7 @@ static int _numDevices;
 static struct xdma_dev _devices[MAX_DEVICES];
 static struct xdma_chan_cfg _channels[MAX_CHANNELS];
 static unsigned int _kUsedSpace;
-
+static pthread_mutex_t _allocateMutex;
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 
@@ -46,14 +47,21 @@ xdma_status xdmaOpen() {
         return XDMA_ERROR;
     }
 
+    //Initialize mutex
+    pthread_mutex_init(&_allocateMutex, NULL);
+
     return XDMA_SUCCESS;
 }
 
 xdma_status xdmaClose() {
+    //Mutex finalization
+    pthread_mutex_destroy(&_allocateMutex);
+
     if (close(_fd) == -1) {
         perror("Error closing device file");
         return XDMA_ERROR;
     }
+
     return XDMA_SUCCESS;
 }
 
@@ -139,14 +147,17 @@ xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, siz
     //TODO: Check that mmap + ioctl are performet atomically
     unsigned int ret;
     unsigned int status;
+    pthread_mutex_lock(&_allocateMutex);
     *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, 0);
     if (*buffer == MAP_FAILED) {
+        pthread_mutex_unlock(&_allocateMutex);
         perror("Error allocating kernel buffer: mmap failed");
         //TODO: return proper error codes (ENOMEM, etc)
         return XDMA_ERROR;
     }
     //get the handle for the allocated buffer
     status = ioctl(_fd, XDMA_GET_LAST_KBUF, &ret);
+    pthread_mutex_unlock(&_allocateMutex);
     if (status) {
         perror("Error allocating pinned memory");
         munmap(buffer, len);
@@ -336,4 +347,3 @@ static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     }
     return XDMA_SUCCESS;
 }
-
