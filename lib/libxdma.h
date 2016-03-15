@@ -171,6 +171,7 @@ extern "C" {
      */
     xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer);
 
+    xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress);
 
 
 #ifdef __cplusplus

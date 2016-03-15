@@ -347,3 +347,20 @@ static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     }
     return XDMA_SUCCESS;
 }
+
+xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress) {
+    union {
+        xdma_buf_handle dmaBuffer;
+        unsigned long dmaAddress;
+    } kArg;
+    int status;
+    kArg.dmaBuffer = buffer;
+    status = ioctl(_fd, XDMA_GET_DMA_ADDRESS, &kArg);
+    if (status) {
+        perror("Error getting DMA address");
+        return XDMA_ERROR;
+    } else {
+        *dmaAddress = kArg.dmaAddress;
+        return XDMA_SUCCESS;
+    }
+}

@@ -150,6 +150,13 @@ struct xdma_kern_buf* xdma_get_last_kern_buff(void)
 	return last_dma_handle;
 }
 
+unsigned long xdma_get_dma_address(struct xdma_kern_buf *kbuf)
+{
+	PRINT_DBG(KERN_DEBUG "DMA addr: %lx\n", kbuf->dma_addr);
+	return kbuf->dma_addr;
+}
+
+
 //Return the size of the buffer to be reed in order to return to the user for
 //unmapping the buffer from user space
 static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
@@ -545,6 +552,7 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	u32 devices;
 	u32 chan;
 	struct xdma_kern_buf *kbuff_ptr;
+	unsigned long dma_address;
 
 	switch (cmd) {
 	case XDMA_GET_NUM_DEVICES:
@@ -667,6 +675,21 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		get_user(kbuff_ptr, (struct xdma_kern_buf **)arg);
 		ret = xdma_release_kernel_buffer(kbuff_ptr);
+		break;
+
+	case XDMA_GET_DMA_ADDRESS:
+		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_GET_DMA_ADDRESS\n", MODULE_NAME);
+		if (!access_ok(void*, arg, sizeof(void*))) {
+			printk(KERN_DEBUG "<%s> Cannot access user variable @0x%lx",
+					MODULE_NAME, arg);
+			return -EFAULT;
+		}
+		get_user(kbuff_ptr, (struct xdma_kern_buf **)arg);
+		dma_address = xdma_get_dma_address(kbuff_ptr);
+		if (!dma_address) {
+			ret = -EINVAL;
+		}
+		put_user((unsigned long)dma_address, (unsigned long __user *)arg);
 		break;
 
 	default:
