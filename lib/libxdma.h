@@ -55,6 +55,13 @@ extern "C" {
     typedef long unsigned int xdma_transfer_handle;
     typedef void* xdma_buf_handle;
 
+    typedef struct {
+        uint32_t start;         //Acc start timestamp
+        uint32_t inTransfer;    //Timestamp after in transfers have finished
+        uint32_t computation;   //Timestamp after computation have finished
+        uint32_t outTransfer;   //Timestamp after output transfers have finished/acc end
+    } xdma_instr_times;
+
     /*!
      * Initialize the DMA userspace library & userspace library
      */
@@ -172,6 +179,10 @@ extern "C" {
     xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer);
 
     xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress);
+
+    xdma_status xdmaInitHWInstrumentation();
+    xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times);
+    xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes);
 
 
 #ifdef __cplusplus
