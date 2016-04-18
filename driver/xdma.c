@@ -21,7 +21,10 @@
 #include <linux/amba/xilinx_dma.h>
 #include <linux/platform_device.h>
 
-//#define DEBUG_PRINT 1
+#include <linux/of.h>
+
+#define DEBUG_PRINT 1
+#define DBG_MEM_COMPAT	"xlnx,axi-bram-ctrl-4.0"
 
 #ifdef DEBUG_PRINT
 #define PRINT_DBG(...) printk( __VA_ARGS__)
@@ -33,6 +36,12 @@ static dev_t dev_num;		// Global variable for the device number
 static struct cdev c_dev;	// Global variable for the character device structure
 static struct class *cl;	// Global variable for the device class
 static struct device *dma_dev;
+
+static dev_t instr_dev_num;
+static struct device *instr_dev;
+static struct cdev instr_c_dev;
+static void __iomem *instr_io_addr;
+static int has_instrumentation;
 
 struct xdma_sg_mem {
 	struct sg_table sg_tbl;
@@ -710,6 +719,34 @@ static struct file_operations fops = {
 	.unlocked_ioctl = xdma_ioctl,
 };
 
+static int xdma_instr_open(struct inode *i, struct file *f)
+{
+	return 0;
+}
+
+static int xdma_instr_close(struct inode *i, struct file *f)
+{
+	return 0;
+}
+
+//Used to read current timestamps
+static int xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *off)
+{
+	u64 timestamp;
+	if (len < sizeof(u64)) return -EINVAL;
+	timestamp = ((u64)readl(instr_io_addr)) | ((u64)readl(instr_io_addr + sizeof(u32))) << 32;
+	copy_to_user(buf, &timestamp, sizeof(u64));
+
+	return sizeof(u64);
+}
+
+static struct file_operations instr_fops = {
+	.owner = THIS_MODULE,
+	.open = xdma_instr_open,
+	.release = xdma_instr_close,
+	.read = xdma_instr_read,
+};
+
 static bool xdma_filter(struct dma_chan *chan, void *param)
 {
 	if (*((int *)chan->private) == *(int *)param)
@@ -816,7 +853,12 @@ static void xdma_cleanup(void)
 
 static int __init xdma_probe(void)
 {
+	struct device_node *device_tree;
+	struct device_node *trace_bram;
+	int instr_mem_space[2];
+	int status;
 	num_devices = 0;
+	has_instrumentation = 0;
 
 	/* device constructor */
 	printk(KERN_DEBUG "<%s> init: registered\n", MODULE_NAME);
@@ -844,16 +886,68 @@ static int __init xdma_probe(void)
 
     INIT_LIST_HEAD(&desc_list);
 
+	//Look for bram controller for debug time reading
+	device_tree = of_node_get(of_root);
+	trace_bram = of_find_compatible_node(device_tree, NULL, DBG_MEM_COMPAT);
+	if (!trace_bram) {
+		printk(KERN_INFO "<%s> No acc debug hardware found", MODULE_NAME);
+		return 0;
+	} else {
+		printk(KERN_INFO "Loading accelerator tracing support");
+	}
+	status = of_property_read_u32_array(trace_bram, "reg", instr_mem_space, 2);
+	if (status < 0) {
+		printk(KERN_WARNING "<%s> Could not read acc. instrumentation address from device tree",
+				MODULE_NAME);
+		return 0;
+	}
+
+	//Create device structure for userspace interaction
+	printk(KERN_DEBUG "<%s> Creating instrumentation timing device in FS\n", MODULE_NAME);
+	if (alloc_chrdev_region(&instr_dev_num, 0, 1, MODULE_NAME "_instr")) {
+		printk(KERN_WARNING "<%s> Could not allocate char device for instr.",
+				MODULE_NAME);
+		return 0; //Do not return error as we can live without instrumentation
+
+	}
+	instr_dev = device_create(cl, NULL, instr_dev_num, NULL, MODULE_NAME "_instr");
+	if (instr_dev == NULL) {
+		unregister_chrdev_region(instr_dev_num, 1);
+		printk(KERN_WARNING "<%s> Could not create intrumentation device",
+				MODULE_NAME);
+		return 0;
+	}
+	cdev_init(&instr_c_dev, &instr_fops);
+	if(cdev_add(&instr_c_dev, instr_dev_num, 1) == -1) {
+		device_destroy(cl, instr_dev_num);
+		unregister_chrdev_region(instr_dev_num, 1);
+		return 0;
+	}
+
+	//remap register space in virtual kernel space
+	instr_io_addr = ioremap((resource_size_t)instr_mem_space[0],
+			(size_t)instr_mem_space[1]);
+
+	has_instrumentation = 1;
+	printk(KERN_DEBUG "<%s> xdma intrumentation initalized\n", MODULE_NAME);
 	return 0;
 }
 
 static void __exit xdma_exit(void)
 {
+	/* Destroy instrumentation device if necessary */
+	if (has_instrumentation) {
+		cdev_del(&instr_c_dev);
+		device_destroy(cl, instr_dev_num);
+		unregister_chrdev_region(instr_dev_num, 1);
+		iounmap(instr_io_addr);
+	}
 	/* device destructor */
 	cdev_del(&c_dev);
 	device_destroy(cl, dev_num);
 	class_destroy(cl);
 	unregister_chrdev_region(dev_num, 1);
+
 	printk(KERN_DEBUG "<%s> exit: unregistered\n", MODULE_NAME);
 }
 
