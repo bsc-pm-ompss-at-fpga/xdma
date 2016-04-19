@@ -26,6 +26,7 @@
 #define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
 
 static int _fd;
+static int _instr_fd;
 
 static int _numDevices;
 static struct xdma_dev _devices[MAX_DEVICES];
@@ -41,6 +42,7 @@ static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 xdma_status xdmaOpen() {
     _numDevices = -1;
     _kUsedSpace = 0;
+    _instr_fd = 0;
     //TODO: check if library has been initialized
     _fd = open(FILEPATH, O_RDWR | O_CREAT | O_TRUNC, (mode_t) 0600);
     if (_fd == -1) {
@@ -50,6 +52,11 @@ xdma_status xdmaOpen() {
 
     //Initialize mutex
     pthread_mutex_init(&_allocateMutex, NULL);
+
+    //try to initialize instrumentation support
+
+    _instr_fd = open(INSTR_FILEPATH, O_RDONLY);
+    //no error control as instrumentation device may not be present, causing open to fail
 
     return XDMA_SUCCESS;
 }
@@ -61,6 +68,10 @@ xdma_status xdmaClose() {
     if (close(_fd) == -1) {
         perror("Error closing device file");
         return XDMA_ERROR;
+    }
+
+    if (_instr_fd > 0) {
+        close(_instr_fd);
     }
 
     return XDMA_SUCCESS;
@@ -459,4 +470,18 @@ xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes) {
         }
     }
     return XDMA_ERROR;
+}
+
+xdma_status xdmaGetDeviceTime(uint64_t *time) {
+    int rd;
+    rd = read(_instr_fd, time, sizeof(uint64_t));
+    if (rd != sizeof(uint64_t)) {
+        return XDMA_ERROR;
+    } else {
+        return XDMA_SUCCESS;
+    }
+}
+
+int xdmaInstrumentationEnabled() {
+    return (_instr_fd > 0);
 }

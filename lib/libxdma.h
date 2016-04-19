@@ -13,6 +13,7 @@ extern "C" {
 #include <stdlib.h>
 
 #define FILEPATH "/dev/xdma"
+#define INSTR_FILEPATH  "/dev/xdma_instr"
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
@@ -183,6 +184,10 @@ extern "C" {
     xdma_status xdmaInitHWInstrumentation();
     xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times);
     xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes);
+
+
+    xdma_status xdmaGetDeviceTime(uint64_t *time);
+    int xdmaInstrumentationEnabled();
 
 
 #ifdef __cplusplus
