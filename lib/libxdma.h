@@ -57,10 +57,10 @@ extern "C" {
     typedef void* xdma_buf_handle;
 
     typedef struct {
-        uint32_t start;         //Acc start timestamp
-        uint32_t inTransfer;    //Timestamp after in transfers have finished
-        uint32_t computation;   //Timestamp after computation have finished
-        uint32_t outTransfer;   //Timestamp after output transfers have finished/acc end
+        uint64_t start;         //Acc start timestamp
+        uint64_t inTransfer;    //Timestamp after in transfers have finished
+        uint64_t computation;   //Timestamp after computation have finished
+        uint64_t outTransfer;   //Timestamp after output transfers have finished/acc end
     } xdma_instr_times;
 
     /*!

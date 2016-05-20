@@ -382,21 +382,22 @@ xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress)
 
 #define INSTRUMENT_NUM_COUNTERS     4
 #define INSTRUMENT_BUFFER_SIZE      4096    //1 page
-#define INSTRUMENT_NUM_ENTRIES      (INSTRUMENT_BUFFER_SIZE/(INSTRUMENT_NUM_COUNTERS*sizeof(uint32_t)))
+//#define INSTRUMENT_NUM_ENTRIES      (INSTRUMENT_BUFFER_SIZE/(INSTRUMENT_NUM_COUNTERS*sizeof(uint32_t)))
+#define INSTRUMENT_NUM_ENTRIES       (INSTRUMENT_BUFFER_SIZE/sizeof(xdma_instr_times))
 #define INSTRUMENT_PARAM_NUM        2
 
 #define INSTRUMENT_HW_COUNTER_ADDR   0X40000000
 
-uint32_t *instrumentBuffer;
-uint32_t *instrumentPhyAddr;
+uint64_t *instrumentBuffer;
+uint64_t *instrumentPhyAddr;
 
 xdma_buf_handle instrBufferHandle;
 
 //FIXME instrument_entry structure may not be necessary
 typedef struct {
     int taskID;             //not sure if needed
-    uint32_t *counters;     //userspace counter addr
-    uint32_t *phyCounters;  //physical counter addr
+    uint64_t *counters;     //userspace counter addr
+    uint64_t *phyCounters;  //physical counter addr
 } xdma_instrument_entry;
 
 
@@ -464,7 +465,7 @@ xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes) {
     //find the instrument entry
     memset(taskTimes, 0, sizeof(xdma_instr_times));
     for (int i=0; i<INSTRUMENT_NUM_ENTRIES; i++) {
-        if (instrumentEntries[i].counters == (uint32_t*)taskTimes) {
+        if (instrumentEntries[i].counters == (uint64_t*)taskTimes) {
             memset(&instrumentEntries[i], 0, sizeof(xdma_instrument_entry));
             return XDMA_SUCCESS;
         }
@@ -475,6 +476,9 @@ xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes) {
 xdma_status xdmaGetDeviceTime(uint64_t *time) {
     int rd;
     rd = read(_instr_fd, time, sizeof(uint64_t));
+    //FIXME: clear high 32bit until HW actually returns 64 bit timestamps
+    //*time = *time & 0xFFFFFFFFULL;
+    //fprintf(stderr, "XDMA_TIME: %llu\n", *time);
     if (rd != sizeof(uint64_t)) {
         return XDMA_ERROR;
     } else {
