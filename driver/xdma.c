@@ -732,9 +732,16 @@ static int xdma_instr_close(struct inode *i, struct file *f)
 //Used to read current timestamps
 static int xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *off)
 {
-	u64 timestamp;
+	u64 timestamp, lo, hi;
+    lo = 0;
+    hi = 0;
 	if (len < sizeof(u64)) return -EINVAL;
-	timestamp = ((u64)readl(instr_io_addr)) | ((u64)readl(instr_io_addr + sizeof(u32))) << 32;
+    lo = (u64) readl(instr_io_addr);
+    hi = (u64) readl(instr_io_addr + sizeof(u32)) << 32;
+    timestamp = lo | hi;
+
+	//timestamp = ((u64)readl(instr_io_addr)) | ((u64)readl(instr_io_addr + sizeof(u32))) << 32;
+    PRINT_DBG(KERN_INFO "XDMA_GET_TIME hi: %llu lo: %llu timestamp: %llu\n", hi, lo, timestamp);
 	copy_to_user(buf, &timestamp, sizeof(u64));
 
 	return sizeof(u64);
