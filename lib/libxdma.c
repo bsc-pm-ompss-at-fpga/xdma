@@ -404,7 +404,7 @@ typedef struct {
 xdma_instrument_entry instrumentEntries[INSTRUMENT_NUM_ENTRIES];
 
 //Allocate a buffer to send instrumentation parameters to a task (or hw transaction)
-static uint32_t *instrParamBuffer;
+static uint64_t *instrParamBuffer;
 static xdma_buf_handle instrParamHandle;
 
 xdma_status xdmaInitHWInstrumentation() {
@@ -436,10 +436,10 @@ xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times
         return XDMA_ERROR;
     }
 
-    uint32_t *param;
+    uint64_t *param;
     param = &instrParamBuffer[freeEntry*INSTRUMENT_PARAM_NUM];
     param[0] = INSTRUMENT_HW_COUNTER_ADDR;
-    param[1] = (uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS];
+    param[1] = (uint64_t)((uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
 
     *times = (xdma_instr_times*)&instrumentBuffer[freeEntry*INSTRUMENT_NUM_COUNTERS];
 
@@ -455,8 +455,8 @@ xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times
     xdma_channel devInCh =
         (xdma_channel)&_channels[devNumber*CHANNELS_PER_DEVICE + XDMA_TO_DEVICE];
 
-    xdmaSubmitKBuffer(instrParamHandle, INSTRUMENT_PARAM_NUM*sizeof(uint32_t),
-            freeEntry*INSTRUMENT_PARAM_NUM*sizeof(uint32_t),
+    xdmaSubmitKBuffer(instrParamHandle, INSTRUMENT_PARAM_NUM*sizeof(uint64_t),
+            freeEntry*INSTRUMENT_PARAM_NUM*sizeof(uint64_t),
             XDMA_SYNC, device, devInCh, NULL);
     return XDMA_SUCCESS;
 }
