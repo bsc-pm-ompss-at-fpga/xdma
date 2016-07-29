@@ -37,6 +37,31 @@ static pthread_mutex_t _allocateMutex;
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 
 
+//HW tracing stuff
+//TODO: allow to add more counter buffers as needed
+
+#define INSTRUMENT_NUM_COUNTERS     4
+#define INSTRUMENT_BUFFER_SIZE      4096    //1 page
+//#define INSTRUMENT_NUM_ENTRIES      (INSTRUMENT_BUFFER_SIZE/(INSTRUMENT_NUM_COUNTERS*sizeof(uint32_t)))
+#define INSTRUMENT_NUM_ENTRIES       (INSTRUMENT_BUFFER_SIZE/sizeof(xdma_instr_times))
+#define INSTRUMENT_PARAM_NUM        2
+
+#define INSTRUMENT_HW_COUNTER_ADDR   0X40000000
+
+uint64_t *instrumentBuffer;
+uint64_t *instrumentPhyAddr;
+
+xdma_buf_handle instrBufferHandle;
+
+//FIXME instrument_entry structure may not be necessary
+typedef struct {
+    int taskID;             //not sure if needed
+    uint64_t *counters;     //userspace counter addr
+    uint64_t *phyCounters;  //physical counter addr
+} xdma_instrument_entry;
+
+xdma_instrument_entry instrumentEntries[INSTRUMENT_NUM_ENTRIES];
+
 //TODO: Constructor in order to initialize everything
 
 xdma_status xdmaOpen() {
@@ -376,32 +401,6 @@ xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress)
         return XDMA_SUCCESS;
     }
 }
-
-//HW tracing stuff
-//TODO: allow to add more counter buffers as needed
-
-#define INSTRUMENT_NUM_COUNTERS     4
-#define INSTRUMENT_BUFFER_SIZE      4096    //1 page
-//#define INSTRUMENT_NUM_ENTRIES      (INSTRUMENT_BUFFER_SIZE/(INSTRUMENT_NUM_COUNTERS*sizeof(uint32_t)))
-#define INSTRUMENT_NUM_ENTRIES       (INSTRUMENT_BUFFER_SIZE/sizeof(xdma_instr_times))
-#define INSTRUMENT_PARAM_NUM        2
-
-#define INSTRUMENT_HW_COUNTER_ADDR   0X40000000
-
-uint64_t *instrumentBuffer;
-uint64_t *instrumentPhyAddr;
-
-xdma_buf_handle instrBufferHandle;
-
-//FIXME instrument_entry structure may not be necessary
-typedef struct {
-    int taskID;             //not sure if needed
-    uint64_t *counters;     //userspace counter addr
-    uint64_t *phyCounters;  //physical counter addr
-} xdma_instrument_entry;
-
-
-xdma_instrument_entry instrumentEntries[INSTRUMENT_NUM_ENTRIES];
 
 //Allocate a buffer to send instrumentation parameters to a task (or hw transaction)
 static uint64_t *instrParamBuffer;
