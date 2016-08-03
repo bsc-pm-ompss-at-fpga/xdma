@@ -51,10 +51,22 @@ extern "C" {
         XDMA_CH_NONE,
     } xdma_channel_flags;
 
+    typedef enum {
+        XDMA_COMPUTE_DISABLE = 0,
+        XDMA_COMPUTE_ENABLE = 1,
+    } xdma_compute_flags;
+
+    typedef enum {
+        XDMA_BRAM = 0,
+        XDMA_PRIVATE = 1,
+        XDMA_GLOBAL = 2,
+    } xdma_mem_flags;
+
     typedef long unsigned int xdma_device;
     typedef long unsigned int xdma_channel;
     typedef long unsigned int xdma_transfer_handle;
     typedef void* xdma_buf_handle;
+    typedef unsigned int xdma_task_handle;
 
     typedef struct {
         uint64_t start;         //Acc start timestamp
@@ -189,6 +201,20 @@ extern "C" {
     xdma_status xdmaGetDeviceTime(uint64_t *time);
     int xdmaInstrumentationEnabled();
 
+    xdma_status xdmaInitTask(int accId, int numInput, xdma_compute_flags compute,
+            int numOutput, xdma_task_handle *taskDescriptor);
+
+    xdma_status xdmaAddDataCopy(xdma_task_handle *taskHandle,
+            unsigned int paramId, xdma_mem_flags flags, xdma_dir direction,
+            xdma_buf_handle *buffer, size_t size, unsigned int offset);
+
+    xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle *taskHandle);
+
+    xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **times);
+
+    xdma_status xdmaWaitTask(xdma_task_handle handle);
+
+    xdma_status xdmaDeleteTask(xdma_task_handle *handle);
 
 #ifdef __cplusplus
 }
