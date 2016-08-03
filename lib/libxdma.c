@@ -583,10 +583,18 @@ xdma_status xdmaAddDataCopy(xdma_task_handle *taskHandle,
     xdmaGetDMAAddress(*buffer, &phyAddr);
     phyAddr += offset;
 
+    unsigned int paramIdx;
+    if (direction == XDMA_FROM_DEVICE) {
+        int numInputs = ((xdma_task_header*)taskEntries[*taskHandle].taskDescriptor)->numInputs;
+        paramIdx = paramId + numInputs;
+    } else {
+        paramIdx = paramId;
+    }
+
     //Fill the copy entry
-    copies[paramId].cacheFlags = flags;
-    copies[paramId].paramId = paramId;
-    copies[paramId].address = (uint64_t)phyAddr;
+    copies[paramIdx].cacheFlags = flags;
+    copies[paramIdx].paramId = paramId;
+    copies[paramIdx].address = (uint64_t)phyAddr;
     return XDMA_SUCCESS;
 }
 
