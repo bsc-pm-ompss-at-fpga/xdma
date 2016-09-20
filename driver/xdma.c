@@ -15,7 +15,6 @@
 
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
-#include <xen/page.h>
 
 #include <linux/slab.h>
 #include <linux/dma/xilinx_dma.h>
