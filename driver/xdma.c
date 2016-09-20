@@ -15,10 +15,9 @@
 
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
-#include <xen/page.h>
 
 #include <linux/slab.h>
-#include <linux/amba/xilinx_dma.h>
+#include <linux/dma/xilinx_dma.h>
 #include <linux/platform_device.h>
 
 #include <linux/of.h>
@@ -214,26 +213,6 @@ static void xdma_sync_callback(void *completion)
 {
     PRINT_DBG("Completion callback for %p\n", completion);
 	complete(completion);
-}
-
-static void xdma_device_control(struct xdma_chan_cfg *chan_cfg)
-{
-	struct dma_chan *chan;
-	struct dma_device *chan_dev;
-	struct xilinx_dma_config config;
-
-	config.direction = xdma_to_dma_direction(chan_cfg->dir);
-	config.coalesc = chan_cfg->coalesc;
-	config.delay = chan_cfg->delay;
-	config.reset = chan_cfg->reset;
-
-	chan = (struct dma_chan *)chan_cfg->chan;
-
-	if (chan) {
-		chan_dev = chan->device;
-		chan_dev->device_control(chan, DMA_SLAVE_CONFIG,
-					 (unsigned long)&config);
-	}
 }
 
 static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
@@ -542,12 +521,8 @@ static int xdma_finish_transfer(struct xdma_transfer *trans) {
 
 static void xdma_stop_transfer(struct dma_chan *chan)
 {
-	struct dma_device *chan_dev;
-
 	if (chan) {
-		chan_dev = chan->device;
-		chan_dev->device_control(chan, DMA_TERMINATE_ALL,
-					 (unsigned long)NULL);
+		dmaengine_terminate_all(chan);
 	}
 }
 
@@ -555,7 +530,6 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
 	struct xdma_dev xdma_dev;
-	struct xdma_chan_cfg chan_cfg;
 	struct xdma_buf_info buf_info;
 	struct xdma_transfer trans;
 	u32 devices;
@@ -588,17 +562,6 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				 &xdma_dev, sizeof(struct xdma_dev)))
 			return -EFAULT;
 
-		break;
-	case XDMA_DEVICE_CONTROL:
-		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_DEVICE_CONTROL\n",
-		       MODULE_NAME);
-
-		if (copy_from_user((void *)&chan_cfg,
-				   (const void __user *)arg,
-				   sizeof(struct xdma_chan_cfg)))
-			return -EFAULT;
-
-		xdma_device_control(&chan_cfg);
 		break;
 	case XDMA_PREP_BUF:
 		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_PREP_BUF\n", MODULE_NAME);
