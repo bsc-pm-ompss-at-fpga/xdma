@@ -125,15 +125,6 @@ xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel
         ch_config->chan = dev->tx_chan;
         ch_config->dir = XDMA_MEM_TO_DEV;
     }
-
-    //These should be configurable using flags (TODO)
-    ch_config->coalesc = 1;
-    ch_config->delay = 0;
-    ch_config->reset = 0;
-    if (ioctl(_fd, XDMA_DEVICE_CONTROL, ch_config) < 0) {
-        perror("Error ioctl config rx chan");
-        return XDMA_ERROR;
-    }
     *channel = (xdma_channel)ch_config;
     return XDMA_SUCCESS;
 }
