@@ -652,6 +652,19 @@ static struct file_operations fops = {
 
 static bool xdma_filter(struct dma_chan *chan, void *param)
 {
+	printk(KERN_INFO "Filtering channel...\n");
+	if (chan == NULL) {
+		printk(KERN_INFO "Filtering a null channel\n");
+		return false;
+	}
+	if (chan->private == NULL) {
+		printk(KERN_INFO "Getting null channel private\n");
+		return false;
+	}
+	if (param == NULL) {
+		printk(KERN_INFO "NULL param in filter function\n");
+		return false;
+	}
 	if (*((int *)chan->private) == *(int *)param)
 		return true;
 
