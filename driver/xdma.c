@@ -24,6 +24,7 @@
 
 #define DEBUG_PRINT 1
 #define DBG_MEM_COMPAT	"xlnx,axi-bram-ctrl-4.0"
+#define CHAN_NAME_MAX_LEN	32
 
 #ifdef DEBUG_PRINT
 #define PRINT_DBG(...) printk( __VA_ARGS__)
@@ -35,6 +36,7 @@ static dev_t dev_num;		// Global variable for the device number
 static struct cdev c_dev;	// Global variable for the character device structure
 static struct class *cl;	// Global variable for the device class
 static struct device *dma_dev;
+static struct platform_device *xdma_pdev;
 
 static dev_t instr_dev_num;
 static struct device *instr_dev;
@@ -717,27 +719,6 @@ static struct file_operations instr_fops = {
 	.read = xdma_instr_read,
 };
 
-static bool xdma_filter(struct dma_chan *chan, void *param)
-{
-	printk(KERN_INFO "Filtering channel...\n");
-	if (chan == NULL) {
-		printk(KERN_INFO "Filtering a null channel\n");
-		return false;
-	}
-	if (chan->private == NULL) {
-		printk(KERN_INFO "Getting null channel private\n");
-		return false;
-	}
-	if (param == NULL) {
-		printk(KERN_INFO "NULL param in filter function\n");
-		return false;
-	}
-	if (*((int *)chan->private) == *(int *)param)
-		return true;
-
-	return false;
-}
-
 static void xdma_add_dev_info(struct dma_chan *tx_chan,
 			      struct dma_chan *rx_chan)
 {
@@ -764,25 +745,18 @@ static void xdma_add_dev_info(struct dma_chan *tx_chan,
 
 static void xdma_init(void)
 {
-	dma_cap_mask_t mask;
-	u32 match_tx, match_rx;
 	struct dma_chan *tx_chan, *rx_chan;
+	int i;
+	char chan_to_name[CHAN_NAME_MAX_LEN];
+	char chan_from_name[CHAN_NAME_MAX_LEN];
 
-	dma_cap_zero(mask);
-	dma_cap_set(DMA_SLAVE | DMA_PRIVATE, mask);
+	for (i=0;;i++) {
 
-	for (;;) {
-		match_tx = (DMA_MEM_TO_DEV & 0xFF) | XILINX_DMA_IP_DMA |
-		    (num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
+		sprintf(chan_to_name, "acc%d_to_dev", i);
+		sprintf(chan_from_name, "acc%d_from_dev", i);
 
-		tx_chan = dma_request_channel(mask, xdma_filter,
-					      (void *)&match_tx);
-
-		match_rx = (DMA_DEV_TO_MEM & 0xFF) | XILINX_DMA_IP_DMA |
-		    (num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
-
-		rx_chan = dma_request_channel(mask, xdma_filter,
-					      (void *)&match_rx);
+		tx_chan = dma_request_slave_channel(&xdma_pdev->dev, chan_to_name);
+		rx_chan = dma_request_slave_channel(&xdma_pdev->dev, chan_from_name);
 
 		if (!tx_chan && !rx_chan) {
 			printk(KERN_DEBUG
@@ -790,6 +764,7 @@ static void xdma_init(void)
 			       MODULE_NAME, num_devices);
 			break;
 		} else {
+			PRINT_DBG("got channels tx: %p rx: %p\n", tx_chan, rx_chan);
 			xdma_add_dev_info(tx_chan, rx_chan);
 		}
 	}
@@ -834,7 +809,7 @@ static void xdma_cleanup(void)
 	kmem_cache_destroy(buf_handle_cache);
 }
 
-static int __init xdma_probe(void)
+static int xdma_driver_probe(struct platform_device *pdev)
 {
 	struct device_node *device_tree;
 	struct device_node *trace_bram;
@@ -842,6 +817,9 @@ static int __init xdma_probe(void)
 	int status;
 	num_devices = 0;
 	has_instrumentation = 0;
+
+	//Save platform device structure for later use
+	xdma_pdev = pdev;
 
 	/* device constructor */
 	printk(KERN_DEBUG "<%s> init: registered\n", MODULE_NAME);
@@ -867,7 +845,7 @@ static int __init xdma_probe(void)
 		return -1;
 	}
 
-    INIT_LIST_HEAD(&desc_list);
+	INIT_LIST_HEAD(&desc_list);
 
 	//Look for bram controller for debug time reading
 	device_tree = of_node_get(of_root);
@@ -916,7 +894,7 @@ static int __init xdma_probe(void)
 	return 0;
 }
 
-static void __exit xdma_exit(void)
+static int xdma_driver_exit(struct platform_device *pdev)
 {
 	/* Destroy instrumentation device if necessary */
 	if (has_instrumentation) {
@@ -932,7 +910,36 @@ static void __exit xdma_exit(void)
 	unregister_chrdev_region(dev_num, 1);
 
 	printk(KERN_DEBUG "<%s> exit: unregistered\n", MODULE_NAME);
+	return 0;
 }
+
+static const struct of_device_id xdma_of_ids[] = {
+	{ .compatible = "xdma,xdma_acc" } ,
+	{}
+};
+
+static struct platform_driver xdma_platform_driver = {
+	.driver = {
+		.name = "xdma driver",
+		.owner = THIS_MODULE,
+		.of_match_table = xdma_of_ids,
+	},
+	.probe = xdma_driver_probe,
+	.remove = xdma_driver_exit,
+};
+
+static int __init xdma_probe(void)
+{
+	printk(KERN_INFO "xdma module probe");
+	return platform_driver_register(&xdma_platform_driver);
+}
+
+static void __exit xdma_exit(void)
+{
+	printk(KERN_INFO "xdma module exit");
+	platform_driver_unregister(&xdma_platform_driver);
+}
+
 
 module_init(xdma_probe);
 module_exit(xdma_exit);
