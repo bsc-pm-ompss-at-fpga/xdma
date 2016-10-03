@@ -125,6 +125,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	buffer_addr = dma_zalloc_coherent(NULL, requested_size, &dma_handle,
 			GFP_KERNEL);
+	PRINT_DBG("    dma@: %p kernel@: %p\n", dma_handle, buffer_addr);
 	if (!buffer_addr) {
 		printk(KERN_ERR "<%s> Error: allocating dma memory failed\n",
 				MODULE_NAME);
@@ -132,10 +133,21 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	//For some reason, physical address is not correctly computed
+	//causing the DMA address and the physical address being mapped to
+	//be different.
+	//This causes the process to write in a different physical location
+	//different from the one sent to the HW
 	result = remap_pfn_range(vma, vma->vm_start,
-				 virt_to_pfn(buffer_addr),
-				 requested_size, vma->vm_page_prot);
+			dma_handle >> PAGE_SHIFT,
+			//virt_to_pfn(buffer_addr),
+			requested_size, vma->vm_page_prot);
 
+	PRINT_DBG("  Mapped usr: %x kern: %x dma: %x pfn: %x\n",
+			vma->vm_start, buffer_addr, dma_handle,
+			virt_to_pfn(buffer_addr));
+	PRINT_DBG("  virt_to_phys: %p __pv_phys_pfn_offset: %x",
+			virt_to_phys(buffer_addr), __pv_phys_pfn_offset);
 	if (result) {
 		printk(KERN_ERR
 		       "<%s> Error: in calling remap_pfn_range: returned %d\n",
