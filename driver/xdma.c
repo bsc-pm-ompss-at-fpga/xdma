@@ -146,7 +146,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	PRINT_DBG("  Mapped usr: %x kern: %x dma: %x pfn: %x\n",
 			vma->vm_start, buffer_addr, dma_handle,
 			virt_to_pfn(buffer_addr));
-	PRINT_DBG("  virt_to_phys: %p __pv_phys_pfn_offset: %x",
+	PRINT_DBG("  virt_to_phys: %p __pv_phys_pfn_offset: %x\n",
 			virt_to_phys(buffer_addr), __pv_phys_pfn_offset);
 	if (result) {
 		printk(KERN_ERR
