@@ -34,6 +34,8 @@ matmul_usr: matmul_usr.c
 gen_task_thread: gen_task_thread.cpp
 	$(CXX) $(INCLUDES) $(CXXFLAGS) $< -pthread -o $@ $(LDFLAGS)
 
+matmul_cache_test: matmul_cache_test.c
+	$(CC) $(INCLUDES) $(CFLAGS) -Wno-format-security $< -o $@ $(LDFLAGS)
 
 loopback_ompss: loopback_ompss.c
 	$(FPGACC) $(FPGACFLAGS) $< -o $@
