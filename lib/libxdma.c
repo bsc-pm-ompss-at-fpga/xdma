@@ -67,7 +67,7 @@ typedef struct __attribute__ ((__packed__)) {
 #define INSTRUMENT_NUM_ENTRIES       (INSTRUMENT_BUFFER_SIZE/sizeof(xdma_instr_times))
 #define INSTRUMENT_PARAM_NUM        2
 
-#define INSTRUMENT_HW_COUNTER_ADDR   0X40000000
+#define INSTRUMENT_HW_COUNTER_ADDR   0X80000000
 
 uint64_t *instrumentBuffer;
 uint64_t *instrumentPhyAddr;
