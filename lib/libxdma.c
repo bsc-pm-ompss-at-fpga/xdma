@@ -487,7 +487,7 @@ xdma_status xdmaFiniHWInstrumentation() {
     return sPH == XDMA_SUCCESS ? sBH : sPH;
 }
 
-static int getInstrFreeEntry() {
+static int getFreeEntry() {
     for (int i=0; i<INSTRUMENT_NUM_ENTRIES; i++) {
         if (instrumentEntries[i].taskID == 0) {
             if (__sync_add_and_fetch(&(instrumentEntries[i].taskID), 1 ) == 1) {
@@ -497,40 +497,6 @@ static int getInstrFreeEntry() {
         }
     }
     return -1;
-}
-
-xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times) {
-    int freeEntry;
-    freeEntry = getInstrFreeEntry();
-    if (freeEntry < 0) {
-        //TODO: More specific errors
-        return XDMA_ENOMEM;
-    }
-
-    uint64_t *param;
-    param = &instrParamBuffer[freeEntry*INSTRUMENT_PARAM_NUM];
-    param[0] = INSTRUMENT_HW_COUNTER_ADDR;
-    param[1] = (uint64_t)((uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
-
-    *times = (xdma_instr_times*)&instrumentBuffer[freeEntry*INSTRUMENT_NUM_COUNTERS];
-
-    //NOTE: Atomically done in the getInstrFreeEntry
-    //    instrumentEntries[freeEntry].taskID = 1; //taskID;
-    instrumentEntries[freeEntry].counters =
-        &instrumentBuffer[freeEntry*INSTRUMENT_NUM_COUNTERS];
-    instrumentEntries[freeEntry].phyCounters =
-        &instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS];
-
-    //get device's input channel
-    int devNumber = ((struct xdma_dev*)device - _devices);
-    //direction is going to be 0 or 1
-    xdma_channel devInCh =
-        (xdma_channel)&_channels[devNumber*CHANNELS_PER_DEVICE + XDMA_TO_DEVICE];
-
-    xdmaSubmitKBuffer(instrParamHandle, INSTRUMENT_PARAM_NUM*sizeof(uint64_t),
-            freeEntry*INSTRUMENT_PARAM_NUM*sizeof(uint64_t),
-            XDMA_SYNC, device, devInCh, NULL);
-    return XDMA_SUCCESS;
 }
 
 xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes) {
@@ -567,7 +533,7 @@ xdma_status xdmaInitTask(int accId, xdma_compute_flags compute, xdma_task_handle
     //Get a destination buffer for instrumentation data
     int freeEntry;
     uint64_t instrAddress;
-    freeEntry = getInstrFreeEntry();
+    freeEntry = getFreeEntry();
     if (freeEntry < 0) {
         return XDMA_ENOMEM;
     }

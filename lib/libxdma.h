@@ -212,7 +212,6 @@ extern "C" {
      *          XDMA_ERROR    otherwise
      */
     xdma_status xdmaFiniHWInstrumentation();
-    xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times);
     xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes);
 
 
