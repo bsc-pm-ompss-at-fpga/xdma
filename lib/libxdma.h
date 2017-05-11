@@ -33,6 +33,9 @@ extern "C" {
         XDMA_SUCCESS = 0,   ///< Operation finished sucessfully
         XDMA_ERROR,         ///< Operation finished with an error
         XDMA_PENDING,       ///< Operation not yet finished
+        XDMA_EINVAL,        ///< Invalid operation arguments
+        XDMA_ENOMEM,        ///< Operation failed due to an error allocating memory
+        XDMA_EISINIT,       ///< Operation failed because is already initialized
     }xdma_status;
 
     /// Channel direcction
@@ -193,7 +196,22 @@ extern "C" {
 
     xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress);
 
+    /*!
+     * Initialize the support for HW instrumentation.
+     * Note that the function will fail if the HW instrumentation support is not available in the loaded
+     * bitstream.
+     * \return  XDMA_SUCCESS  if the support is successfully initialized
+     *          XDMA_EISINIT  if the support is already initialized
+     *          XDMA_ERROR    otherwise
+     */
     xdma_status xdmaInitHWInstrumentation();
+
+    /*!
+     * Finalize the support for HW instrumentation
+     * \return  XDMA_SUCCESS  if the support is successfully finalized
+     *          XDMA_ERROR    otherwise
+     */
+    xdma_status xdmaFiniHWInstrumentation();
     xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times);
     xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes);
 
@@ -201,14 +219,13 @@ extern "C" {
     xdma_status xdmaGetDeviceTime(uint64_t *time);
     int xdmaInstrumentationEnabled();
 
-    xdma_status xdmaInitTask(int accId, int numInput, xdma_compute_flags compute,
-            int numOutput, xdma_task_handle *taskDescriptor);
+    xdma_status xdmaInitTask(int accId, xdma_compute_flags compute,
+            xdma_task_handle *taskDescriptor);
 
-    xdma_status xdmaAddDataCopy(xdma_task_handle *taskHandle,
-            unsigned int paramId, xdma_mem_flags flags, xdma_dir direction,
-            xdma_buf_handle *buffer, size_t size, unsigned int offset);
+    xdma_status xdmaAddArg(xdma_task_handle taskHandle, size_t argId,
+            xdma_mem_flags flags, xdma_buf_handle buffer, size_t offset);
 
-    xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle *taskHandle);
+    xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle taskHandle);
 
     xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **times);
 

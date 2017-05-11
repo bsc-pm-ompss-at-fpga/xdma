@@ -43,21 +43,19 @@ typedef struct {
         uint64_t buffer;
     } profile;
     uint32_t accId;
-    uint32_t numInputs;
     uint32_t compute;
-    uint32_t numOutputs;
 } xdma_task_header;
 
 
 #define COPY_ID_WIDTH       24
 #define CACHE_FLAGS_WIDTH   8
-#define TASK_MAX_LEN        256 //Header + 18 copies
+#define TASK_MAX_LEN        256 //Header + 19 args + 4 bytes (not used)
 
 typedef struct __attribute__ ((__packed__)) {
     unsigned int cacheFlags: CACHE_FLAGS_WIDTH; //low 8bit
     unsigned int paramId: COPY_ID_WIDTH;        //high 24bit
     uint64_t address;
-} xdma_copy;
+} xdma_arg;
 
 
 //HW tracing stuff
@@ -94,6 +92,7 @@ xdma_buf_handle taskDescriptorsHandle;
 
 struct task_entry {
     void *taskDescriptor;               //Pointer to the task descriptor
+    size_t argsCnt;                     //Number of arguments in task
     xdma_buf_handle taskHandle;         //Task buffer handle
     xdma_transfer_handle descriptorTx;  //Task descriptor transfer handle
     xdma_transfer_handle syncTx;        //Task sync transfer handle
@@ -111,6 +110,10 @@ static xdma_status xdmaInitTasks() {
             TASK_MAX_LEN*MAX_RUNNING_TASKS);
 }
 
+static xdma_status xdmaFiniTasks() {
+    return xdmaFreeKernelBuffer(taskDescriptors, taskDescriptorsHandle);
+}
+
 xdma_status xdmaOpen() {
     _numDevices = -1;
     _kUsedSpace = 0;
@@ -126,11 +129,8 @@ xdma_status xdmaOpen() {
     pthread_mutex_init(&_allocateMutex, NULL);
 
     //try to initialize instrumentation support
-
-    _instr_fd = open(INSTR_FILEPATH, O_RDONLY);
-    //no error control as instrumentation device may not be present, causing open to fail
-    //Initialize instrumentation buffers
-    xdmaInitHWInstrumentation();
+    // NOTE: Initialization disabled as instrumentation may be not-wanted
+    //xdmaInitHWInstrumentation();
 
     //initialize tasking
     //Allocate space for the task descriptors in order not to allocate a new buffer
@@ -154,16 +154,15 @@ xdma_status xdmaOpen() {
 }
 
 xdma_status xdmaClose() {
+    //Finalize tasking
+    xdmaFiniTasks();
+
     //Mutex finalization
     pthread_mutex_destroy(&_allocateMutex);
 
     if (close(_fd) == -1) {
         perror("Error closing device file");
         return XDMA_ERROR;
-    }
-
-    if (_instr_fd > 0) {
-        close(_instr_fd);
     }
 
     return XDMA_SUCCESS;
@@ -461,6 +460,11 @@ xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress)
 }
 
 xdma_status xdmaInitHWInstrumentation() {
+    if (_instr_fd > 0) return XDMA_EISINIT;
+
+    //Open instrumentation file
+    _instr_fd = open(INSTR_FILEPATH, O_RDONLY);
+
     //allocate instrumentation buffer & get its physical address
     xdmaAllocateKernelBuffer((void**)&instrumentBuffer, &instrBufferHandle,
             INSTRUMENT_BUFFER_SIZE);
@@ -472,13 +476,27 @@ xdma_status xdmaInitHWInstrumentation() {
     return XDMA_SUCCESS;
 }
 
+xdma_status xdmaFiniHWInstrumentation() {
+    xdma_status sPH, sBH;
+    instrumentPhyAddr = NULL;
+    sPH = xdmaFreeKernelBuffer(instrParamBuffer, instrParamHandle);
+    sBH = xdmaFreeKernelBuffer(instrumentBuffer, instrBufferHandle);
+    if (_instr_fd > 0) {
+        close(_instr_fd);
+    }
+    return sPH == XDMA_SUCCESS ? sBH : sPH;
+}
+
 static int getInstrFreeEntry() {
     for (int i=0; i<INSTRUMENT_NUM_ENTRIES; i++) {
         if (instrumentEntries[i].taskID == 0) {
-            return i;
+            if (__sync_add_and_fetch(&(instrumentEntries[i].taskID), 1 ) == 1) {
+               return i;
+            }
+            __sync_sub_and_fetch(&(instrumentEntries[i].taskID), 1 );
         }
     }
-    return 0;
+    return -1;
 }
 
 xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times) {
@@ -486,7 +504,7 @@ xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times
     freeEntry = getInstrFreeEntry();
     if (freeEntry < 0) {
         //TODO: More specific errors
-        return XDMA_ERROR;
+        return XDMA_ENOMEM;
     }
 
     uint64_t *param;
@@ -496,7 +514,8 @@ xdma_status xdmaSetupTaskInstrument(xdma_device device, xdma_instr_times **times
 
     *times = (xdma_instr_times*)&instrumentBuffer[freeEntry*INSTRUMENT_NUM_COUNTERS];
 
-    instrumentEntries[freeEntry].taskID = 1; //taskID;
+    //NOTE: Atomically done in the getInstrFreeEntry
+    //    instrumentEntries[freeEntry].taskID = 1; //taskID;
     instrumentEntries[freeEntry].counters =
         &instrumentBuffer[freeEntry*INSTRUMENT_NUM_COUNTERS];
     instrumentEntries[freeEntry].phyCounters =
@@ -543,16 +562,18 @@ int xdmaInstrumentationEnabled() {
     return (_instr_fd > 0);
 }
 
-xdma_status xdmaInitTask(int accId, int numInput, xdma_compute_flags compute, int numOutput,
-        xdma_task_handle *taskDescriptor) {
-
+xdma_status xdmaInitTask(int accId, xdma_compute_flags compute, xdma_task_handle *taskDescriptor) {
     //TODO: Error checking
     //Get a destination buffer for instrumentation data
     int freeEntry;
     uint64_t instrAddress;
     freeEntry = getInstrFreeEntry();
+    if (freeEntry < 0) {
+        return XDMA_ENOMEM;
+    }
     instrAddress = (uint64_t)((uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
-    instrumentEntries[freeEntry].taskID = 1;
+    //NOTE: Atomically done in the getInstrFreeEntry
+    //instrumentEntries[freeEntry].taskID = 1;
 
     //Allocate task descriptor inside the kernel
     //  TODO: Reuse buffers
@@ -560,58 +581,52 @@ xdma_status xdmaInitTask(int accId, int numInput, xdma_compute_flags compute, in
     taskHeader = taskDescriptors + freeEntry*TASK_MAX_LEN;
     taskEntries[freeEntry].taskDescriptor = (void *)taskHeader;
     taskEntries[freeEntry].taskHandle = taskDescriptorsHandle;
+    taskEntries[freeEntry].argsCnt = 0;
 
     //Fill the task header structure
     taskHeader->profile.timer = INSTRUMENT_HW_COUNTER_ADDR;
     taskHeader->profile.buffer = instrAddress;
     taskHeader->accId = accId; //FIXME
-    taskHeader->numInputs = numInput;
     taskHeader->compute = compute;
-    taskHeader->numOutputs = numOutput;
 
     *taskDescriptor = freeEntry;
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaAddDataCopy(xdma_task_handle *taskHandle,
-        unsigned int paramId, xdma_mem_flags flags, xdma_dir direction,
-        xdma_buf_handle *buffer, size_t size, unsigned int offset) {
-
+xdma_status xdmaAddArg(xdma_task_handle taskHandle, size_t argId, xdma_mem_flags flags,
+        xdma_buf_handle buffer, size_t offset) {
     void *task;
-    xdma_copy *copies;
+    xdma_arg *args;
+
+    if (taskHandle < 0 || !buffer) return XDMA_EINVAL;
+
     //Add offset from the header
-    task = taskEntries[*taskHandle].taskDescriptor + sizeof(xdma_task_header);
-    copies = (xdma_copy*)task;
+    task = taskEntries[taskHandle].taskDescriptor + sizeof(xdma_task_header);
+    args = (xdma_arg*)task;
     //Get the physical address & apply offset
     unsigned long phyAddr;
-    xdmaGetDMAAddress(*buffer, &phyAddr);
+    if (xdmaGetDMAAddress(buffer, &phyAddr) != XDMA_SUCCESS) {
+        return XDMA_ERROR;
+    }
     phyAddr += offset;
 
-    unsigned int paramIdx;
-    if (direction == XDMA_FROM_DEVICE) {
-        int numInputs = ((xdma_task_header*)taskEntries[*taskHandle].taskDescriptor)->numInputs;
-        paramIdx = paramId + numInputs;
-    } else {
-        paramIdx = paramId;
-    }
-
-    //Fill the copy entry
-    copies[paramIdx].cacheFlags = flags;
-    copies[paramIdx].paramId = paramId;
-    copies[paramIdx].address = (uint64_t)phyAddr;
+    //Fill the argument entry
+    size_t idx = taskEntries[taskHandle].argsCnt++;
+    args[idx].cacheFlags = flags;
+    args[idx].paramId = argId;
+    args[idx].address = (uint64_t)phyAddr;
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle *taskHandle) {
+xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle taskHandle) {
     //Send the task descriptor
     xdma_buf_handle taskBuffer;
     xdma_transfer_handle descHandle, syncHandle;
+    xdma_status retD, retS;
 
-    taskBuffer = taskEntries[*taskHandle].taskHandle;
-    xdma_task_header *taskHeader = (xdma_task_header*)taskEntries[*taskHandle].taskDescriptor;
-    size_t size = sizeof(xdma_task_header) +
-        taskHeader->numInputs*sizeof(xdma_copy) +
-        taskHeader->numOutputs*sizeof(xdma_copy);
+    taskBuffer = taskEntries[taskHandle].taskHandle;
+    xdma_task_header *taskHeader = (xdma_task_header*)taskEntries[taskHandle].taskDescriptor;
+    size_t size = sizeof(xdma_task_header) + taskEntries[taskHandle].argsCnt*sizeof(xdma_arg);
 
     //get device's channels
     int devNumber = ((struct xdma_dev*)dev - _devices);
@@ -621,15 +636,15 @@ xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle *taskHandle) {
     xdma_channel outChannel =
         (xdma_channel)&_channels[devNumber*CHANNELS_PER_DEVICE + XDMA_FROM_DEVICE];
 
-    xdmaSubmitKBuffer(taskDescriptorsHandle, size, (void*)taskHeader - taskDescriptors,
-            XDMA_ASYNC, dev, inChannel, &descHandle);
-    xdmaSubmitKBuffer(taskBuffer, sizeof(uint32_t), offsetof(xdma_task_header, compute),
-            XDMA_ASYNC, dev, outChannel, &syncHandle);
+    retD = xdmaSubmitKBuffer(taskDescriptorsHandle, size, (void*)taskHeader - taskDescriptors,
+           XDMA_ASYNC, dev, inChannel, &descHandle);
+    retS = xdmaSubmitKBuffer(taskBuffer, sizeof(uint32_t), offsetof(xdma_task_header, compute),
+           XDMA_ASYNC, dev, outChannel, &syncHandle);
 
-    taskEntries[*taskHandle].descriptorTx = descHandle;
-    taskEntries[*taskHandle].syncTx = syncHandle;
+    taskEntries[taskHandle].descriptorTx = descHandle;
+    taskEntries[taskHandle].syncTx = syncHandle;
 
-    return XDMA_SUCCESS;
+    return retD == XDMA_SUCCESS ? retS : retD;
 }
 
 xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **times) {
@@ -638,10 +653,10 @@ xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **time
 }
 
 xdma_status xdmaWaitTask(xdma_task_handle handle) {
-    xdmaWaitTransfer(taskEntries[handle].descriptorTx);
-    xdmaWaitTransfer(taskEntries[handle].syncTx);
-
-    return XDMA_SUCCESS;
+    xdma_status retD, retS;
+    retD = xdmaWaitTransfer(taskEntries[handle].descriptorTx);
+    retS = xdmaWaitTransfer(taskEntries[handle].syncTx);
+    return retD == XDMA_SUCCESS ? retS : retD;
 }
 
 xdma_status xdmaDeleteTask(xdma_task_handle *handle) {
