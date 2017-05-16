@@ -34,6 +34,7 @@ static struct xdma_dev _devices[MAX_DEVICES];
 static struct xdma_chan_cfg _channels[MAX_CHANNELS];
 static unsigned int _kUsedSpace;
 static pthread_mutex_t _allocateMutex;
+static pthread_mutex_t *_submitMutexes;
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 
@@ -154,6 +155,15 @@ xdma_status xdmaOpen() {
 }
 
 xdma_status xdmaClose() {
+    //Device mutex finalization
+    if (_numDevices >= 0) {
+        //If anyone called xdmaGetDevices, the global variable is negative and mutexes are not init
+        for (int i=0; i<_numDevices; i++) {
+            pthread_mutex_destroy(&(_submitMutexes[i]));
+        }
+        free(_submitMutexes);
+    }
+
     //Finalize tasking
     xdmaFiniTasks();
 
@@ -184,15 +194,22 @@ xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs){
         int ndevs;
         status = xdmaGetNumDevices(&ndevs);
         if (status != XDMA_SUCCESS) {
-            return XDMA_ERROR;
+            return status;
+        }
+        _submitMutexes = (pthread_mutex_t *)(malloc(ndevs*sizeof(pthread_mutex_t)));
+        if (_submitMutexes == NULL) {
+            return XDMA_ENOMEM;
         }
         //Initialize all devices
         for (int i=0; i<ndevs; i++) {
             status = getDeviceInfo(i, &_devices[i]);
             if (status != XDMA_SUCCESS) {
-                return XDMA_ERROR;
+                return status;
                 //TODO: It may be necessary some cleanup if there is an error
             }
+
+            //Initialize device mutex
+            pthread_mutex_init(&(_submitMutexes[i]), NULL);
         }
         _numDevices = ndevs;
     }
@@ -296,7 +313,10 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
     buf.buf_size = (u32) len;
     buf.dir = channel->dir;
 
+    pthread_mutex_t * devMutex = &(_submitMutexes[device - _devices]);
+    pthread_mutex_lock(devMutex);
     if (ioctl(_fd, XDMA_PREP_BUF, &buf) < 0) {
+        pthread_mutex_unlock(devMutex);
         perror("Error ioctl set rx buf");
         return XDMA_ERROR;
     }
@@ -317,9 +337,11 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
     trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
     trans->sg_transfer = (u32)NULL;
     if (ioctl(_fd, XDMA_START_TRANSFER, trans) < 0) {
+        pthread_mutex_unlock(devMutex);
         perror("Error ioctl start tx trans");
         return XDMA_ERROR;
     }
+    pthread_mutex_unlock(devMutex);
     if (mode == XDMA_ASYNC) {
         *transfer = (xdma_transfer_handle)trans;
     }
