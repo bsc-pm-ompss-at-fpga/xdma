@@ -486,6 +486,10 @@ xdma_status xdmaInitHWInstrumentation() {
 
     //Open instrumentation file
     _instr_fd = open(INSTR_FILEPATH, O_RDONLY);
+    if (_instr_fd == -1) {
+        perror("Error opening instrumentation device file for reading");
+        return XDMA_ERROR;
+    }
 
     //allocate instrumentation buffer & get its physical address
     xdmaAllocateKernelBuffer((void**)&instrumentBuffer, &instrBufferHandle,
