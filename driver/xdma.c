@@ -181,8 +181,9 @@ struct xdma_kern_buf* xdma_get_last_kern_buff(void)
 
 unsigned long xdma_get_dma_address(struct xdma_kern_buf *kbuf)
 {
-	PRINT_DBG(KERN_DEBUG "DMA addr: %lx\n", kbuf->dma_addr);
-	return kbuf->dma_addr;
+	const unsigned long dma_addr = kbuf ? kbuf->dma_addr : 0;
+	PRINT_DBG(KERN_DEBUG "DMA addr: %lx\n", dma_addr);
+	return dma_addr;
 }
 
 
