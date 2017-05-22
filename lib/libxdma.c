@@ -35,6 +35,7 @@ static struct xdma_chan_cfg _channels[MAX_CHANNELS];
 static unsigned int _kUsedSpace;
 static pthread_mutex_t _allocateMutex;
 static pthread_mutex_t *_submitMutexes;
+static int _open_cnt = 0;
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 
@@ -116,6 +117,12 @@ static xdma_status xdmaFiniTasks() {
 }
 
 xdma_status xdmaOpen() {
+    int open_cnt;
+
+    // Handle multiple opens
+    open_cnt = __sync_fetch_and_add(&_open_cnt, 1);
+    if (open_cnt > 0) return XDMA_SUCCESS;
+
     _numDevices = -1;
     _kUsedSpace = 0;
     _instr_fd = 0;
@@ -155,6 +162,12 @@ xdma_status xdmaOpen() {
 }
 
 xdma_status xdmaClose() {
+    int open_cnt;
+
+    // Handle multiple opens
+    open_cnt = __sync_sub_and_fetch(&_open_cnt, 1);
+    if (open_cnt > 0) return XDMA_SUCCESS;
+
     //Device mutex finalization
     if (_numDevices >= 0) {
         //If anyone called xdmaGetDevices, the global variable is negative and mutexes are not init
