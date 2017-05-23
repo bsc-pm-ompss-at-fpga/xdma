@@ -20,6 +20,12 @@ libxdma-static.a : libxdma.o
 doc:
 	doxygen
 
+install: libxdma.so libxdma-static.a libxdma.h
+	mkdir -p $(PREFIX)/lib
+	cp libxdma.so libxdma-static.a $(PREFIX)/lib/
+	mkdir -p $(PREFIX)/include
+	cp libxdma.h $(PREFIX)/include/
+
 .PHONY : clean
 clean :
 	rm -f *.o libxdma.so libxdma-static.a

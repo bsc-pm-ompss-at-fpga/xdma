@@ -58,11 +58,11 @@ struct xdma_kern_buf {
 };
 
 static struct xdma_kern_buf *last_dma_handle;
-struct kmem_cache *buf_handle_cache;
+static struct kmem_cache *buf_handle_cache;
 
-struct xdma_dev *xdma_dev_info[MAX_DEVICES + 1];
-u32 num_devices;
-static int opened;
+static struct xdma_dev *xdma_dev_info[MAX_DEVICES + 1];
+static u32 num_devices;
+static int opened = 0;
 static void xdma_init(void);
 static void xdma_cleanup(void);
 
@@ -73,28 +73,35 @@ static struct list_head desc_list;
 
 static int xdma_open(struct inode *i, struct file *f)
 {
-	PRINT_DBG(KERN_DEBUG "<%s> file: open(): Running HW initialization\n",
-	       MODULE_NAME);
+	int local_opened;
+
+	local_opened = __sync_fetch_and_add(&opened, 1);
+	PRINT_DBG(KERN_DEBUG "<%s> file: open(): %d previous opens\n",
+	       MODULE_NAME, local_opened);
+
 	//Deal with multiple opens
-	if (opened == 0) {
+	if (local_opened <= 0) {
+		PRINT_DBG(KERN_DEBUG "<%s> file: open(): Running HW initialization\n",
+			MODULE_NAME);
 		xdma_init();
-		opened = 1;
-		return 0;
-	} else {
-		return -EBUSY;
 	}
+	return 0;
 }
 
 static int xdma_close(struct inode *i, struct file *f)
 {
-	PRINT_DBG(KERN_DEBUG "<%s> file: close(): Running cleanup\n", MODULE_NAME);
-	if (opened == 1) {
+	int local_opened;
+
+	local_opened = __sync_sub_and_fetch(&opened, 1);
+	PRINT_DBG(KERN_DEBUG "<%s> file: close(): %d remaining opens\n",
+		MODULE_NAME, local_opened);
+
+	if (local_opened <= 0) {
+		PRINT_DBG(KERN_DEBUG "<%s> file: close(): Running cleanup\n",
+			MODULE_NAME);
 		xdma_cleanup();
-		opened = 0;
-		return 0;
-	} else {
-		return -EBUSY;
 	}
+	return 0;
 }
 
 static ssize_t xdma_read(struct file *f, char __user * buf, size_t
@@ -174,8 +181,9 @@ struct xdma_kern_buf* xdma_get_last_kern_buff(void)
 
 unsigned long xdma_get_dma_address(struct xdma_kern_buf *kbuf)
 {
-	PRINT_DBG(KERN_DEBUG "DMA addr: %lx\n", kbuf->dma_addr);
-	return kbuf->dma_addr;
+	const unsigned long dma_addr = kbuf ? kbuf->dma_addr : 0;
+	PRINT_DBG(KERN_DEBUG "DMA addr: %lx\n", dma_addr);
+	return dma_addr;
 }
 
 
