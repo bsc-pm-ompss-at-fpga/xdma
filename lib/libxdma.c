@@ -269,7 +269,7 @@ xdma_status xdmaCloseChannel(xdma_channel *channel) {
 
 xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, size_t len) {
     //TODO: Check that mmap + ioctl are performet atomically
-    unsigned int ret;
+    unsigned long ret;
     unsigned int status;
     pthread_mutex_lock(&_allocateMutex);
     *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, 0);
@@ -319,11 +319,11 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
     //Weird. Completion callback may be stored per channel
     buf.completion =
         (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
-    buf.cookie = (u32) NULL;
+    buf.cookie = (dma_cookie_t)0;
     //Use address to store the buffer descriptor handle
-    buf.address = (u32) buffer;
-    buf.buf_offset = (u32) offset;
-    buf.buf_size = (u32) len;
+    buf.address = (unsigned long)buffer;
+    buf.buf_offset = offset;
+    buf.buf_size = len;
     buf.dir = channel->dir;
 
     pthread_mutex_t * devMutex = &(_submitMutexes[device - _devices]);
@@ -348,7 +348,7 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
     trans->completion = buf.completion;
     trans->cookie = buf.cookie;
     trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
-    trans->sg_transfer = (u32)NULL;
+    trans->sg_transfer = 0;
     if (ioctl(_fd, XDMA_START_TRANSFER, trans) < 0) {
         pthread_mutex_unlock(devMutex);
         perror("Error ioctl start tx trans");
@@ -371,8 +371,8 @@ xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma
     buf.chan = channel->chan;
     buf.completion =
         (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
-    buf.cookie = (u32) NULL;
-    buf.address = (u32) buffer;
+    buf.cookie = 0;
+    buf.address = (unsigned long)buffer;
     buf.buf_size = (u32) len;
     buf.dir = channel->dir;
 
@@ -465,10 +465,10 @@ xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer){
 }
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
-    devInfo->tx_chan = (u32) NULL;
-    devInfo->tx_cmp = (u32) NULL;
-    devInfo->rx_chan = (u32) NULL;
-    devInfo->rx_cmp = (u32) NULL;
+    devInfo->tx_chan = NULL;
+    devInfo->tx_cmp = NULL;
+    devInfo->rx_chan = NULL;
+    devInfo->rx_cmp = NULL;
     devInfo->device_id = deviceId;
     if (ioctl(_fd, XDMA_GET_DEV_INFO, devInfo) < 0) {
         perror("Error ioctl getting device info");
@@ -576,7 +576,8 @@ xdma_status xdmaInitTask(int accId, xdma_compute_flags compute, xdma_task_handle
     if (freeEntry < 0) {
         return XDMA_ENOMEM;
     }
-    instrAddress = (uint64_t)((uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
+    //instrAddress = (uint64_t)((uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
+    instrAddress = (uint64_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS];
     //NOTE: Atomically done in the getInstrFreeEntry
     //instrumentEntries[freeEntry].taskID = 1;
 

@@ -132,7 +132,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	buffer_addr = dma_zalloc_coherent(NULL, requested_size, &dma_handle,
 			GFP_KERNEL);
-	PRINT_DBG("    dma@: %p kernel@: %p\n", dma_handle, buffer_addr);
+	PRINT_DBG("    dma@: %llx kernel@: %p\n", dma_handle, buffer_addr);
 	if (!buffer_addr) {
 		printk(KERN_ERR "<%s> Error: allocating dma memory failed\n",
 				MODULE_NAME);
@@ -150,11 +150,11 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 			//virt_to_pfn(buffer_addr),
 			requested_size, vma->vm_page_prot);
 
-	PRINT_DBG("  Mapped usr: %x kern: %x dma: %x pfn: %x\n",
+	PRINT_DBG("  Mapped usr: %lx kern: %p dma: %llx pfn: %lx\n",
 			vma->vm_start, buffer_addr, dma_handle,
 			virt_to_pfn(buffer_addr));
-	PRINT_DBG("  virt_to_phys: %p __pv_phys_pfn_offset: %x\n",
-			virt_to_phys(buffer_addr), __pv_phys_pfn_offset);
+//	PRINT_DBG("  virt_to_phys: %p __pv_phys_pfn_offset: %x\n",
+//			virt_to_phys(buffer_addr), __pv_phys_pfn_offset);
 	if (result) {
 		printk(KERN_ERR
 		       "<%s> Error: in calling remap_pfn_range: returned %d\n",
@@ -240,7 +240,8 @@ static void xdma_sync_callback(void *completion)
 static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 {
 	int ret, i;
-	unsigned int nr_pages, start, len, n_pg;
+	unsigned int nr_pages, len, n_pg;
+    unsigned long start;
 	struct page **page_list;
 	struct scatterlist *sg, *sg_start;
 	struct dma_chan *chan;
@@ -267,16 +268,16 @@ static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 	dir = xdma_to_dma_direction(buf_info->dir);
 	flags = DMA_CTRL_ACK | DMA_PREP_INTERRUPT;
 
-	PRINT_DBG(KERN_DEBUG "Pinning buffer @%x;%u\n", start, len);
+	PRINT_DBG(KERN_DEBUG "Pinning buffer @%lx;%u\n", start, len);
 
 	//Check that the address is valid
 	if (!access_ok(void, start, len)) {
-		printk(KERN_DEBUG "<%s> Cannot access buffer @%x:%u\n",
+		printk(KERN_DEBUG "<%s> Cannot access buffer @%lx:%u\n",
 				MODULE_NAME, start, len);
 		return -EFAULT;
 	}
 	if (len == 0) {
-		printk(KERN_DEBUG "<%s> Trying to transfer buffer with length 0 @%x\n",
+		printk(KERN_DEBUG "<%s> Trying to transfer buffer with length 0 @%lx\n",
 				MODULE_NAME, start);
 		return -EINVAL;
 	}
@@ -285,17 +286,17 @@ static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 	if (!page_list) {
 		kfree(mem);
 		kfree(cmp);
-		printk(KERN_WARNING "<%s> Unable to allocate page list for buffer %x\n",
+		printk(KERN_WARNING "<%s> Unable to allocate page list for buffer %lx\n",
 				MODULE_NAME, start);
 		return -ENOMEM;
 	}
 	offset = start & ~PAGE_MASK;
 	nr_pages = ((((start + len -1) & PAGE_MASK) - (start & PAGE_MASK)) >> PAGE_SHIFT) + 1;
-	PRINT_DBG("Pinning %u pages @%x+%lu\n", nr_pages, start, offset);
+	PRINT_DBG("Pinning %u pages @%lx+%lu\n", nr_pages, start, offset);
 
 	ret = sg_alloc_table(&mem->sg_tbl, nr_pages, GFP_KERNEL);
 	if (ret) {
-		printk("<%s> Coud not allocate SG table for buffer %x\n",
+		printk("<%s> Coud not allocate SG table for buffer %lx\n",
 				MODULE_NAME, start);
 		return -ENOMEM;
 	}
@@ -352,8 +353,8 @@ static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 		ret = -1;
 	}
 	buf_info->cookie = cookie;
-	buf_info->completion = (u32)cmp;
-	buf_info->sg_transfer = (u32)mem;
+	buf_info->completion = cmp;
+	buf_info->sg_transfer = mem;
 
 	mem->npages = nr_pages;
 	mem->dir = dir;
@@ -410,8 +411,8 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
         printk(KERN_ERR "Unable to allocate XDMA completion\n");
     }
     init_completion(cmp);
-    buf_info->completion = (u32)cmp;
-	buf_info->sg_transfer = (u32)NULL;
+    buf_info->completion = cmp;
+	buf_info->sg_transfer = NULL;
 
     //init_completion(cmp);
     //Init completion when submitting the transfer
@@ -448,7 +449,7 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 		buf_info->cookie = cookie;
 	}
     PRINT_DBG("Buffer prepared cmp=%p\n", cmp);
-    PRINT_DBG("buffer: %p:%d, %x\n", (void*)buf, len, (int)buf_desc->dma_addr);
+    PRINT_DBG("buffer: %p:%zu, %x\n", (void*)buf, len, (int)buf_desc->dma_addr);
 
 	return ret;
 }
@@ -555,7 +556,7 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct xdma_buf_info buf_info;
 	struct xdma_transfer trans;
 	u32 devices;
-	u32 chan;
+	struct dma_chan *chan;
 	struct xdma_kern_buf *kbuff_ptr;
 	unsigned long dma_address;
 
@@ -715,7 +716,7 @@ static int xdma_instr_close(struct inode *i, struct file *f)
 }
 
 //Used to read current timestamps
-static int xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *off)
+ssize_t xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *off)
 {
 	u64 timestamp, lo, hi;
     lo = 0;
@@ -753,11 +754,11 @@ static void xdma_add_dev_info(struct dma_chan *tx_chan,
 	xdma_dev_info[num_devices] = (struct xdma_dev *)
 	    kzalloc(sizeof(struct xdma_dev), GFP_KERNEL);
 
-	xdma_dev_info[num_devices]->tx_chan = (u32) tx_chan;
-	xdma_dev_info[num_devices]->tx_cmp = (u32) tx_cmp;
+	xdma_dev_info[num_devices]->tx_chan = tx_chan;
+	xdma_dev_info[num_devices]->tx_cmp = tx_cmp;
 
-	xdma_dev_info[num_devices]->rx_chan = (u32) rx_chan;
-	xdma_dev_info[num_devices]->rx_cmp = (u32) rx_cmp;
+	xdma_dev_info[num_devices]->rx_chan = rx_chan;
+	xdma_dev_info[num_devices]->rx_cmp = rx_cmp;
 
 	xdma_dev_info[num_devices]->device_id = num_devices;
 	num_devices++;

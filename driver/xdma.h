@@ -40,15 +40,15 @@ extern "C" {
     };
 
 	struct xdma_dev {
-		u32 tx_chan;	/* (struct dma_chan *) */
-		u32 tx_cmp;	/* (struct completion *) callback_param */
-		u32 rx_chan;	/* (struct dma_chan *) */
-		u32 rx_cmp;	/* (struct completion *) callback_param */
+		struct dma_chan *tx_chan;	/* (struct dma_chan *) */
+		struct completion *tx_cmp;	/* (struct completion *) callback_param */
+		struct dma_chan *rx_chan;	/* (struct dma_chan *) */
+		struct completion *rx_cmp;	/* (struct completion *) callback_param */
 		u32 device_id;
 	};
 
 	struct xdma_chan_cfg {
-		u32 chan;	/* (struct dma_chan *) */
+		struct dma_chan *chan;	/* (struct dma_chan *) */
 
 		enum xdma_direction dir;	/* Channel direction */
 		int coalesc;	/* Interrupt coalescing threshold */
@@ -57,24 +57,24 @@ extern "C" {
 	};
 
 	struct xdma_buf_info {
-		u32 chan;	/* (struct dma_chan *) */
-		u32 completion;	/* (struct completion *) callback_param */
+		struct dma_chan *chan;	/* (struct dma_chan *) */
+		struct completion *completion;	/* (struct completion *) callback_param */
 
 		dma_cookie_t cookie;
-		u32 address;
+		unsigned long address;
 		u32 buf_offset;
 		u32 buf_size;
 		enum xdma_direction dir;
-		u32 sg_transfer;
+		void *sg_transfer;	//internal type
 	};
 
 	struct xdma_transfer {
-		u32 chan;	/* (struct dma_chan *) */
-		u32 completion;	/* (struct completion *) callback_param */
+		struct dma_chan *chan;	/* (struct dma_chan *) */
+		struct completion *completion;	/* (struct completion *) callback_param */
 
 		dma_cookie_t cookie;
 		u32 wait;	/* true/false */
-        u32 sg_transfer; /* pointer to internal SG structure */
+		void *sg_transfer; /* pointer to internal SG structure */
 	};
 
 
