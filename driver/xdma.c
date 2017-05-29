@@ -130,7 +130,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	PRINT_DBG(MODULE_NAME "Request %lu bytes to kernel\n", requested_size);
 
-	buffer_addr = dma_zalloc_coherent(NULL, requested_size, &dma_handle,
+	buffer_addr = dma_zalloc_coherent(dma_dev, requested_size, &dma_handle,
 			GFP_KERNEL);
 	PRINT_DBG("    dma@: %llx kernel@: %p\n", dma_handle, buffer_addr);
 	if (!buffer_addr) {
@@ -193,7 +193,7 @@ static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
     list_del(&buff_desc->desc_list);
-    dma_free_coherent(NULL, size, buff_desc->addr, buff_desc->dma_addr);
+    dma_free_coherent(dma_dev, size, buff_desc->addr, buff_desc->dma_addr);
 	kmem_cache_free(buf_handle_cache, buff_desc);
 	return size;
 }
