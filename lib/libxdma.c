@@ -576,8 +576,7 @@ xdma_status xdmaInitTask(int accId, xdma_compute_flags compute, xdma_task_handle
     if (freeEntry < 0) {
         return XDMA_ENOMEM;
     }
-    //instrAddress = (uint64_t)((uint32_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
-    instrAddress = (uint64_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS];
+    instrAddress = (uint64_t)((uintptr_t)&instrumentPhyAddr[freeEntry*INSTRUMENT_NUM_COUNTERS]);
     //NOTE: Atomically done in the getInstrFreeEntry
     //instrumentEntries[freeEntry].taskID = 1;
 
