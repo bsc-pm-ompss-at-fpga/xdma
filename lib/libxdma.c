@@ -642,9 +642,11 @@ xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle taskHandle) {
     xdma_channel outChannel =
         (xdma_channel)&_channels[devNumber*CHANNELS_PER_DEVICE + XDMA_FROM_DEVICE];
 
-    retD = xdmaSubmitKBuffer(taskDescriptorsHandle, size, (void*)taskHeader - taskDescriptors,
+    unsigned int descOffset = (void *)taskHeader - taskDescriptors;
+    retD = xdmaSubmitKBuffer(taskDescriptorsHandle, size, descOffset,
            XDMA_ASYNC, dev, inChannel, &descHandle);
-    retS = xdmaSubmitKBuffer(taskBuffer, sizeof(uint32_t), offsetof(xdma_task_header, compute),
+    retS = xdmaSubmitKBuffer(taskBuffer, sizeof(uint32_t),
+           descOffset + offsetof(xdma_task_header, compute),
            XDMA_ASYNC, dev, outChannel, &syncHandle);
 
     taskEntries[taskHandle].descriptorTx = descHandle;
