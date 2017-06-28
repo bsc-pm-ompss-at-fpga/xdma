@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
     xdmaAllocateKernelBuffer((void **)&outData, &outHandle, len*sizeof(int));
 
     for (int i=0; i<len; i++) {
-        inData[i] = TEST_VAL;
+        inData[i] = 0xC0000000 | i;
         outData[i] = 0;
     }
 
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     int errors = 0;
     for (int i=0; i<len; i++) {
         if (outData[i] != inData[i]) {
-            printf("Unexpected output at position %d: %c != %c\n",
+            printf("Unexpected output at position %d: %x != %x\n",
                     i, outData[i], inData[i]);
             errors++;
         }
