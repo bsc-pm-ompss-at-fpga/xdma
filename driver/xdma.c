@@ -62,7 +62,6 @@ static struct kmem_cache *buf_handle_cache;
 
 static struct xdma_dev *xdma_dev_info[MAX_DEVICES + 1];
 static u32 num_devices;
-static int opened = 0;
 static void xdma_init(void);
 static void xdma_cleanup(void);
 
@@ -73,34 +72,11 @@ static struct list_head desc_list;
 
 static int xdma_open(struct inode *i, struct file *f)
 {
-	int local_opened;
-
-	local_opened = __sync_fetch_and_add(&opened, 1);
-	PRINT_DBG(KERN_DEBUG "<%s> file: open(): %d previous opens\n",
-	       MODULE_NAME, local_opened);
-
-	//Deal with multiple opens
-	if (local_opened <= 0) {
-		PRINT_DBG(KERN_DEBUG "<%s> file: open(): Running HW initialization\n",
-			MODULE_NAME);
-		xdma_init();
-	}
 	return 0;
 }
 
 static int xdma_close(struct inode *i, struct file *f)
 {
-	int local_opened;
-
-	local_opened = __sync_sub_and_fetch(&opened, 1);
-	PRINT_DBG(KERN_DEBUG "<%s> file: close(): %d remaining opens\n",
-		MODULE_NAME, local_opened);
-
-	if (local_opened <= 0) {
-		PRINT_DBG(KERN_DEBUG "<%s> file: close(): Running cleanup\n",
-			MODULE_NAME);
-		xdma_cleanup();
-	}
 	return 0;
 }
 
@@ -952,12 +928,16 @@ static struct platform_driver xdma_platform_driver = {
 static int __init xdma_probe(void)
 {
 	printk(KERN_INFO "xdma module probe");
-	return platform_driver_register(&xdma_platform_driver);
+	platform_driver_register(&xdma_platform_driver);
+	xdma_init();
+	return 0;
+	//return platform_driver_register(&xdma_platform_driver);
 }
 
 static void __exit xdma_exit(void)
 {
 	printk(KERN_INFO "xdma module exit");
+	xdma_cleanup();
 	platform_driver_unregister(&xdma_platform_driver);
 }
 
