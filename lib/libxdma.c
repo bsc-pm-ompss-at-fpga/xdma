@@ -44,13 +44,13 @@ typedef struct {
         uint64_t timer;
         uint64_t buffer;
     } profile;
-    uint32_t accId;
     uint32_t compute;
+    uint32_t accId;
 } xdma_task_header;
 
 
-#define COPY_ID_WIDTH       24
-#define CACHE_FLAGS_WIDTH   8
+#define COPY_ID_WIDTH       32
+#define CACHE_FLAGS_WIDTH   32
 #define TASK_MAX_LEN        256 //Header + 19 args + 4 bytes (not used)
 
 typedef struct __attribute__ ((__packed__)) {
@@ -644,7 +644,7 @@ xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle taskHandle) {
     unsigned int descOffset = (void *)taskHeader - taskDescriptors;
     retD = xdmaSubmitKBuffer(taskDescriptorsHandle, size, descOffset,
            XDMA_ASYNC, dev, inChannel, &descHandle);
-    retS = xdmaSubmitKBuffer(taskBuffer, sizeof(uint32_t),
+    retS = xdmaSubmitKBuffer(taskBuffer, sizeof(uint64_t),
            descOffset + offsetof(xdma_task_header, compute),
            XDMA_ASYNC, dev, outChannel, &syncHandle);
 
