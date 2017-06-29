@@ -22,20 +22,20 @@ int main(int argc, char *argv[]){
     //Init library
     xdmaOpen();
     xdma_device dev;
+    //get 1st accelerator
     xdmaGetDevices(1, &dev, NULL);
-//    xdmaOpenChannel(dev, XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel);
-//    xdmaOpenChannel(dev, XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel);
 
     //Allocate matrices
     float *a, *b, *c, *cref;
     xdma_buf_handle aHandle, bHandle, cHandle;
     xdmaAllocateKernelBuffer((void*)&a, &aHandle, M_SIZE*M_SIZE*sizeof(float ));
     xdmaAllocateKernelBuffer((void*)&b, &bHandle, M_SIZE*M_SIZE*sizeof(float ));
-    xdmaAllocateKernelBuffer((void*)&c, &cHandle, 2*M_SIZE*M_SIZE*sizeof(float ));
+    xdmaAllocateKernelBuffer((void*)&c, &cHandle, M_SIZE*M_SIZE*sizeof(float ));
 
-    //initialize matrices
+    //Allocate reference matrix
     cref = malloc(M_SIZE*M_SIZE*sizeof(float));
 
+    //Initialize matrices
     for (int i=0; i<M_SIZE; i++) {
         for (int j=0; j<M_SIZE; j++) {
             a[i*M_SIZE + j] = i*100 + j;
@@ -47,55 +47,25 @@ int main(int argc, char *argv[]){
     for (int i=0; i<M_SIZE; i++) {
         b[i*M_SIZE + i] = factor;
     }
-    //Send task to the accelerator
-    // xdma_status xdmaInitTask(int accId, int numInput, xdma_compute_flags compute,
-    //         int numOutput, xdma_task_handle *taskDescriptor);
 
-
-
-    //Force an offset in transfers
-//    xdma_task_handle dummy_task;
-//    xdmaInitTask(1, 3, XDMA_COMPUTE_ENABLE, 1, &dummy_task);
-//
-//
-//    xdmaAddDataCopy(&dummy_task, 0, XDMA_GLOBAL, XDMA_TO_DEVICE, &aHandle,
-//            M_SIZE*M_SIZE*sizeof(float), 0);
-//    xdmaAddDataCopy(&dummy_task, 1, XDMA_GLOBAL, XDMA_TO_DEVICE, &bHandle,
-//            M_SIZE*M_SIZE*sizeof(float), 0);
-//    xdmaAddDataCopy(&dummy_task, 2, XDMA_GLOBAL, XDMA_TO_DEVICE, &cHandle,
-//            M_SIZE*M_SIZE*sizeof(float), 0);
-//
-//    xdmaAddDataCopy(&dummy_task, 0, XDMA_GLOBAL, XDMA_FROM_DEVICE, &cHandle,
-//            M_SIZE*M_SIZE*sizeof(float), M_SIZE*M_SIZE*sizeof(float));
-//    xdmaSendTask(dev, &dummy_task);
-//    xdmaWaitTask(dummy_task);
 
     xdma_task_handle task;
-    xdmaInitTask(1, 3, XDMA_COMPUTE_ENABLE, 1, &task);
+    //Initialize task
+    xdmaInitTask(1, XDMA_COMPUTE_ENABLE, &task);
 
-    //Set data copies
-    //xdma_status xdmaAddDataCopy(xdma_task_handle *taskHandle,
-    //        unsigned int paramId, xdma_mem_flags flags, xdma_dir direction,
-    //        xdma_buf_handle *buffer, size_t size, unsigned int offset);
-    xdmaAddDataCopy(&task, 0, XDMA_GLOBAL, XDMA_TO_DEVICE, &aHandle,
-            M_SIZE*M_SIZE*sizeof(float), 0);
-    xdmaAddDataCopy(&task, 1, XDMA_GLOBAL, XDMA_TO_DEVICE, &bHandle,
-            M_SIZE*M_SIZE*sizeof(float), 0);
-    xdmaAddDataCopy(&task, 2, XDMA_GLOBAL, XDMA_TO_DEVICE, &cHandle,
-            M_SIZE*M_SIZE*sizeof(float), 0);
-
-    xdmaAddDataCopy(&task, 0, XDMA_GLOBAL, XDMA_FROM_DEVICE, &cHandle,
-            M_SIZE*M_SIZE*sizeof(float), 0);
+    //Set arguments
+    xdmaAddArg(task, 0, XDMA_GLOBAL, aHandle, 0);
+    xdmaAddArg(task, 1, XDMA_GLOBAL, bHandle, 0);
+    xdmaAddArg(task, 2, XDMA_GLOBAL, cHandle, 0);
 
     //xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle *taskHandle);
-    xdmaSendTask(dev, &task);
+    xdmaSendTask(dev, task);
 
-    //Wait for the task
-    //xdma_status xdmaWaitTask(xdma_task_handle handle);
+    //Wait for the task to finish
     xdmaWaitTask(task);
 
     xdma_instr_times *times;
-    //xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **times);
+    //Get hw instrumentation times
     xdmaGetInstrumentData(task, &times);
 
     //free the task
