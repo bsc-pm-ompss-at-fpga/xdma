@@ -12,6 +12,16 @@ all:
 clean:
 	make -C $(KDIR) M=$(PWD) clean
 
+install: xdma.ko
+	@echo Copying xdma rules to /etc/udev/rules.d
+	sudo cp 80-xdma.rules /etc/udev/rules.d/
+	@echo Copying xdma module to /lib/modules/$$(uname -r)/extra
+	if [ ! -d /lib/modules/$$(uname -r)/extra ] ; then \
+	   sudo mkdir /lib/modules/$$(uname -r)/extra ; \
+	fi 
+	sudo cp xdma.ko /lib/modules/$$(uname -r)/extra
+	@echo Determining new module dependences
+	sudo depmod -a
 
 # README
 # try compiling from x86_64 with the Xilinx SDK:
