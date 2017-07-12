@@ -45,13 +45,13 @@ typedef struct {
         uint64_t buffer;
     } profile;
     uint32_t compute;
-    uint32_t accId;
+    uint32_t destId;
 } xdma_task_header;
 
-
+#define TASK_DEST_ID_PS     0x0000001F  //Processing System identifier for the destId field
 #define COPY_ID_WIDTH       32
 #define CACHE_FLAGS_WIDTH   32
-#define TASK_MAX_LEN        256 //Header + 19 args + 4 bytes (not used)
+#define TASK_MAX_LEN        256         //Header + 19 args + 4 bytes (not used)
 
 typedef struct __attribute__ ((__packed__)) {
     unsigned int cacheFlags: CACHE_FLAGS_WIDTH; //low 8bit
@@ -591,7 +591,7 @@ xdma_status xdmaInitTask(int accId, xdma_compute_flags compute, xdma_task_handle
     //Fill the task header structure
     taskHeader->profile.timer = INSTRUMENT_HW_COUNTER_ADDR;
     taskHeader->profile.buffer = instrAddress;
-    taskHeader->accId = accId; //FIXME
+    taskHeader->destId = TASK_DEST_ID_PS;
     taskHeader->compute = compute;
 
     *taskDescriptor = freeEntry;
