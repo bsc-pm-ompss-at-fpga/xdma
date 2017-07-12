@@ -889,7 +889,11 @@ static int xdma_driver_probe(struct platform_device *pdev)
 {
 	struct device_node *device_tree;
 	struct device_node *trace_bram;
-	int instr_mem_space[2];
+#ifdef TARGET_64_BITS
+	u64 instr_mem_space[2];
+#else
+	u32 instr_mem_space[2];
+#endif
 	int status;
 	num_devices = 0;
 	has_instrumentation = 0;
@@ -932,7 +936,11 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	} else {
 		printk(KERN_INFO "Loading accelerator tracing support");
 	}
+#ifdef TARGET_64_BITS
+	status = of_property_read_u64_array(trace_bram, "reg", instr_mem_space, 2);
+#else
 	status = of_property_read_u32_array(trace_bram, "reg", instr_mem_space, 2);
+#endif
 	if (status < 0) {
 		printk(KERN_WARNING "<%s> Could not read acc. instrumentation address from device tree",
 				MODULE_NAME);
