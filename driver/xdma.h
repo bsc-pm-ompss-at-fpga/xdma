@@ -34,10 +34,10 @@ extern "C" {
 		XDMA_TRANS_NONE,
 	};
 
-    enum xdma_transfer_status {
-        XDMA_DMA_TRANSFER_FINISHED = 0,
-        XDMA_DMA_TRANSFER_PENDING,
-    };
+	enum xdma_transfer_status {
+		XDMA_DMA_TRANSFER_FINISHED = 0,
+		XDMA_DMA_TRANSFER_PENDING,
+	};
 
 	struct xdma_dev {
 		struct dma_chan *tx_chan;	/* (struct dma_chan *) */

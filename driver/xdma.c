@@ -16,11 +16,23 @@
 #include <asm/uaccess.h>
 #include <linux/dma-mapping.h>
 
-#include <linux/slab.h>
-#include <linux/dma/xilinx_dma.h>
-#include <linux/platform_device.h>
+#define LINUX_KERNEL_VERSION_4XX (LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0) \
+	&& LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0))
+#define LINUX_KERNEL_VERSION_3XX (LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0) \
+	&& LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+#define TARGET_64_BITS (defined(__LP64__) || defined(_LP64))
 
+#include <linux/slab.h>
+#include <linux/platform_device.h>
 #include <linux/of.h>
+#if LINUX_KERNEL_VERSION_4XX
+#  include <linux/dma/xilinx_dma.h>
+#elif LINUX_KERNEL_VERSION_3XX
+#  include <linux/amba/xilinx_dma.h>
+#else
+#  error The support for your Linux Kernel Version is not tested or \
+         we could not determine your kernel version
+#endif
 
 #define DEBUG_PRINT 1
 #define DBG_MEM_COMPAT	"xlnx,axi-bram-ctrl-4.0"
@@ -101,12 +113,17 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	unsigned long requested_size;
 	dma_addr_t dma_handle;
 	void *buffer_addr;
+#if TARGET_64_BITS
+	static struct device *dev = dma_dev;
+#else
+	static struct device *dev = NULL;
+#endif
+
 
 	requested_size = vma->vm_end - vma->vm_start;
 
 	PRINT_DBG(MODULE_NAME "Request %lu bytes to kernel\n", requested_size);
-
-	buffer_addr = dma_zalloc_coherent(dma_dev, requested_size, &dma_handle,
+	buffer_addr = dma_zalloc_coherent(dev, requested_size, &dma_handle,
 			GFP_KERNEL);
 	PRINT_DBG("    dma@: %llx kernel@: %p\n", dma_handle, buffer_addr);
 	if (!buffer_addr) {
@@ -168,9 +185,15 @@ unsigned long xdma_get_dma_address(struct xdma_kern_buf *kbuf)
 static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
-    list_del(&buff_desc->desc_list);
-    dma_free_coherent(dma_dev, size, buff_desc->addr, buff_desc->dma_addr);
-	kmem_cache_free(buf_handle_cache, buff_desc);
+#if TARGET_64_BITS
+	static struct device *dev = dma_dev;
+#else
+	static struct device *dev = NULL;
+#endif
+
+	list_del(&buff_desc->desc_list);
+	dma_free_coherent(dev, size, buff_desc->addr, buff_desc->dma_addr);
+		kmem_cache_free(buf_handle_cache, buff_desc);
 	return size;
 }
 
@@ -217,7 +240,7 @@ static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 {
 	int ret, i;
 	unsigned int nr_pages, len, n_pg;
-    unsigned long start;
+	unsigned long start;
 	struct page **page_list;
 	struct scatterlist *sg, *sg_start;
 	struct dma_chan *chan;
@@ -313,7 +336,11 @@ static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 		sg_start = sg;
 	}
 	PRINT_DBG("Mapping %u pages and preparing transfer\n", nr_pages);
-	dma_map_sg(dma_dev, mem->sg_tbl.sgl, nr_pages, dir);
+	ret = dma_map_sg(dma_dev, mem->sg_tbl.sgl, nr_pages, dir);
+	if (ret <= 0) {
+		printk(KERN_ERR "Error mapping the transfer pages\n");
+		return -1;
+	}
 	tx_desc = dmaengine_prep_slave_sg(chan, mem->sg_tbl.sgl, nr_pages, dir, flags);
 
 	free_page((unsigned long)page_list);
@@ -521,7 +548,12 @@ static int xdma_finish_transfer(struct xdma_transfer *trans) {
 static void xdma_stop_transfer(struct dma_chan *chan)
 {
 	if (chan) {
+#if LINUX_KERNEL_VERSION_4XX
 		dmaengine_terminate_all(chan);
+#else
+		chan->device->device_control(chan, DMA_TERMINATE_ALL,
+			(unsigned long)NULL);
+#endif
 	}
 }
 
@@ -740,6 +772,7 @@ static void xdma_add_dev_info(struct dma_chan *tx_chan,
 	num_devices++;
 }
 
+#if LINUX_KERNEL_VERSION_4XX
 static void xdma_init(void)
 {
 	struct dma_chan *tx_chan, *rx_chan;
@@ -770,6 +803,52 @@ static void xdma_init(void)
 			sizeof(struct xdma_kern_buf),
 			0, 0, NULL);
 }
+#else
+static bool xdma_filter(struct dma_chan *chan, void *param)
+{
+	if (*((int *)chan->private) == *(int *)param)
+		return true;
+
+	return false;
+}
+
+static void xdma_init(void)
+{
+	dma_cap_mask_t mask;
+	u32 match_tx, match_rx;
+	struct dma_chan *tx_chan, *rx_chan;
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE | DMA_PRIVATE, mask);
+
+	for (;;) {
+		match_tx = (DMA_MEM_TO_DEV & 0xFF) | XILINX_DMA_IP_DMA |
+		    (num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
+
+		tx_chan = dma_request_channel(mask, xdma_filter,
+					      (void *)&match_tx);
+
+		match_rx = (DMA_DEV_TO_MEM & 0xFF) | XILINX_DMA_IP_DMA |
+		    (num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
+
+		rx_chan = dma_request_channel(mask, xdma_filter,
+					      (void *)&match_rx);
+
+		if (!tx_chan && !rx_chan) {
+			printk(KERN_DEBUG
+			       "<%s> probe: number of devices found: %d\n",
+			       MODULE_NAME, num_devices);
+			break;
+		} else {
+			xdma_add_dev_info(tx_chan, rx_chan);
+		}
+	}
+	//slab cache for the buffer descriptors
+	buf_handle_cache = kmem_cache_create("DMA buffer descriptor cache",
+			sizeof(struct xdma_kern_buf),
+			0, 0, NULL);
+}
+#endif
 
 static void xdma_cleanup(void)
 {
