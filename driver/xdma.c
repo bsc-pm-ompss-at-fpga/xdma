@@ -114,7 +114,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	dma_addr_t dma_handle;
 	void *buffer_addr;
 #if TARGET_64_BITS
-	static struct device *dev = dma_dev;
+	struct device *dev = dma_dev;
 #else
 	static struct device *dev = NULL;
 #endif
@@ -186,7 +186,7 @@ static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
 #if TARGET_64_BITS
-	static struct device *dev = dma_dev;
+	struct device *dev = dma_dev;
 #else
 	static struct device *dev = NULL;
 #endif
