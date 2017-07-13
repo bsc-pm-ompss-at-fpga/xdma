@@ -20,7 +20,7 @@
 	&& LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0))
 #define LINUX_KERNEL_VERSION_3XX (LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0) \
 	&& LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
-#define TARGET_64_BITS CONFIG_64BIT
+#define TARGET_64_BITS (defined(CONFIG_64BIT))
 
 #include <linux/slab.h>
 #include <linux/platform_device.h>
@@ -125,7 +125,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	PRINT_DBG(MODULE_NAME "Request %lu bytes to kernel\n", requested_size);
 	buffer_addr = dma_zalloc_coherent(dev, requested_size, &dma_handle,
 			GFP_KERNEL);
-	PRINT_DBG("    dma@: %llx kernel@: %p\n", dma_handle, buffer_addr);
+	PRINT_DBG("    dma@: %llx kernel@: %p\n", (u64)dma_handle, buffer_addr);
 	if (!buffer_addr) {
 		printk(KERN_ERR "<%s> Error: allocating dma memory failed\n",
 				MODULE_NAME);
@@ -144,7 +144,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 			requested_size, vma->vm_page_prot);
 
 	PRINT_DBG("  Mapped usr: %lx kern: %p dma: %llx pfn: %lx\n",
-			vma->vm_start, buffer_addr, dma_handle,
+			vma->vm_start, buffer_addr, (u64)dma_handle,
 			virt_to_pfn(buffer_addr));
 //	PRINT_DBG("  virt_to_phys: %p __pv_phys_pfn_offset: %x\n",
 //			virt_to_phys(buffer_addr), __pv_phys_pfn_offset);
@@ -727,15 +727,15 @@ static int xdma_instr_close(struct inode *i, struct file *f)
 ssize_t xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *off)
 {
 	u64 timestamp, lo, hi;
-    lo = 0;
-    hi = 0;
+	lo = 0;
+	hi = 0;
 	if (len < sizeof(u64)) return -EINVAL;
-    lo = (u64) readl(instr_io_addr);
-    hi = (u64) readl(instr_io_addr + sizeof(u32)) << 32;
-    timestamp = lo | hi;
+	lo = (u64) readl(instr_io_addr);
+	hi = (u64) readl(instr_io_addr + sizeof(u32)) << 32;
+	timestamp = lo | hi;
 
 	//timestamp = ((u64)readl(instr_io_addr)) | ((u64)readl(instr_io_addr + sizeof(u32))) << 32;
-    PRINT_DBG(KERN_INFO "XDMA_GET_TIME hi: %llu lo: %llu timestamp: %llu\n", hi, lo, timestamp);
+	PRINT_DBG(KERN_INFO "XDMA_GET_TIME hi: %llu lo: %llu timestamp: %llu\n", hi, lo, timestamp);
 	copy_to_user(buf, &timestamp, sizeof(u64));
 
 	return sizeof(u64);
@@ -889,7 +889,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 {
 	struct device_node *device_tree;
 	struct device_node *trace_bram;
-#ifdef TARGET_64_BITS
+#if TARGET_64_BITS
 	u64 instr_mem_space[2];
 #else
 	u32 instr_mem_space[2];
@@ -936,7 +936,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	} else {
 		printk(KERN_INFO "Loading accelerator tracing support");
 	}
-#ifdef TARGET_64_BITS
+#if TARGET_64_BITS
 	status = of_property_read_u64_array(trace_bram, "reg", instr_mem_space, 2);
 #else
 	status = of_property_read_u32_array(trace_bram, "reg", instr_mem_space, 2);
