@@ -20,7 +20,7 @@
 	&& LINUX_VERSION_CODE >= KERNEL_VERSION(4,0,0))
 #define LINUX_KERNEL_VERSION_3XX (LINUX_VERSION_CODE < KERNEL_VERSION(4,0,0) \
 	&& LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
-#define TARGET_64_BITS (defined(__LP64__) || defined(_LP64))
+#define TARGET_64_BITS CONFIG_64BIT
 
 #include <linux/slab.h>
 #include <linux/platform_device.h>
