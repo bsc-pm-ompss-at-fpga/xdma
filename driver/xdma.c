@@ -162,7 +162,7 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	last_dma_handle->dma_addr = dma_handle;
 	last_dma_handle->size = requested_size;
 
-    list_add(&last_dma_handle->desc_list, &desc_list);
+	list_add(&last_dma_handle->desc_list, &desc_list);
 
 	return 0;
 }
@@ -232,7 +232,7 @@ static enum dma_transfer_direction xdma_to_dma_direction(enum xdma_direction
 
 static void xdma_sync_callback(void *completion)
 {
-    PRINT_DBG("Completion callback for %p\n", completion);
+	PRINT_DBG("Completion callback for %p\n", completion);
 	complete(completion);
 }
 
@@ -403,22 +403,22 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 	buf_desc = (struct xdma_kern_buf *)buf_info->address;
 	chan = (struct dma_chan *)buf_info->chan;
 	//cmp = (struct completion *)buf_info->completion;
-    //Create a new completion for every operation
-    //TODO reuse completions when possible
-    //  Use a slab cache
-    //Completion must be created here
-    //XXX: Check if also has to be initialized here
-    cmp = kmalloc(sizeof(struct completion), GFP_KERNEL);
+	//Create a new completion for every operation
+	//TODO reuse completions when possible
+	//  Use a slab cache
+	//Completion must be created here
+	//XXX: Check if also has to be initialized here
+	cmp = kmalloc(sizeof(struct completion), GFP_KERNEL);
 
-    if (!cmp) {
-        printk(KERN_ERR "Unable to allocate XDMA completion\n");
-    }
-    init_completion(cmp);
-    buf_info->completion = cmp;
+	if (!cmp) {
+		printk(KERN_ERR "Unable to allocate XDMA completion\n");
+	}
+	init_completion(cmp);
+	buf_info->completion = cmp;
 	buf_info->sg_transfer = NULL;
 
-    //init_completion(cmp);
-    //Init completion when submitting the transfer
+	//init_completion(cmp);
+	//Init completion when submitting the transfer
 
 	//TODO: Check that the buffer (or sub-buffer) does not overrun
 	//the original buffer
@@ -442,7 +442,7 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 
 		// set the prepared descriptor to be executed by the engine
 		//cookie = chan_desc->tx_submit(chan_desc);
-        cookie = dmaengine_submit(chan_desc);
+		cookie = dmaengine_submit(chan_desc);
 		if (dma_submit_error(cookie)) {
 			printk(KERN_ERR "<%s> Error: tx_submit error\n",
 			       MODULE_NAME);
@@ -451,8 +451,8 @@ static int xdma_prep_buffer(struct xdma_buf_info *buf_info)
 
 		buf_info->cookie = cookie;
 	}
-    PRINT_DBG("Buffer prepared cmp=%p\n", cmp);
-    PRINT_DBG("buffer: %p:%zu, %x\n", (void*)buf, len, (int)buf_desc->dma_addr);
+	PRINT_DBG("Buffer prepared cmp=%p\n", cmp);
+	PRINT_DBG("buffer: %p:%zu, %x\n", (void*)buf, len, (int)buf_desc->dma_addr);
 
 	return ret;
 }
@@ -472,10 +472,10 @@ static int xdma_start_transfer(struct xdma_transfer *trans)
 
 	//init_completion(cmp);
 	dma_async_issue_pending(chan);
-    PRINT_DBG("Submit transfer %p-%p-%d (ch-cmp-ck)", (void*)trans->chan, (void*)trans->completion, trans->cookie);
+	PRINT_DBG("Submit transfer %p-%p-%d (ch-cmp-ck)", (void*)trans->chan, (void*)trans->completion, trans->cookie);
 
 	if (trans->wait) {
-        PRINT_DBG(" Sync transfer, waiting\n");
+		PRINT_DBG(" Sync transfer, waiting\n");
 		tmo = wait_for_completion_timeout(cmp, tmo);
 		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
 		if (0 == tmo) {
@@ -503,45 +503,45 @@ static int xdma_finish_transfer(struct xdma_transfer *trans) {
 	dma_cookie_t cookie;
 
 	chan = (struct dma_chan *)trans->chan;
-    //get the completion initialized while preparing the buffer
+	//get the completion initialized while preparing the buffer
 	cmp = (struct completion *)trans->completion;
 
 	cookie = trans->cookie;
-    PRINT_DBG("Finish transfer: Cmp/cookie: %p/%d -> done: %d\n", cmp, cookie, cmp->done);
+	PRINT_DBG("Finish transfer: Cmp/cookie: %p/%d -> done: %d\n", cmp, cookie, cmp->done);
 
-    status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
-    if (status == DMA_COMPLETE) {
-        ret = XDMA_DMA_TRANSFER_FINISHED;
-        //delete completion if transfer has been completed
-        PRINT_DBG(" Transfer finished, deleting completion\n");
-        kfree(cmp);
-    } else {
-        ret = XDMA_DMA_TRANSFER_PENDING;
-    }
+	status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
+	if (status == DMA_COMPLETE) {
+		ret = XDMA_DMA_TRANSFER_FINISHED;
+		//delete completion if transfer has been completed
+		PRINT_DBG(" Transfer finished, deleting completion\n");
+		kfree(cmp);
+	} else {
+		ret = XDMA_DMA_TRANSFER_PENDING;
+	}
 
-    if (trans->wait && status != DMA_COMPLETE) {
-        PRINT_DBG(" Waiting for completion... %p(%d)\n", cmp, cmp->done);
-        tmo = wait_for_completion_timeout(cmp, tmo);
-        status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
-        PRINT_DBG("  Finished t left: %lu completed: %d\n", tmo, status == DMA_COMPLETE);
-        if (0 == tmo ) {
-            printk(KERN_ERR "<%s> Error: transfer timed out\n",
-                    MODULE_NAME);
-            ret = -1;
-        } else if (status != DMA_COMPLETE) {
-            printk(KERN_DEBUG
-                    "<%s> transfer: returned completion callback status of: \'%s\'\n",
-                    MODULE_NAME,
-                    status == DMA_ERROR ? "error" : "in progress");
-            ret = -1;
-            //We may distinguish between error or in progress
-        } else {
-            //may need to check if something went wrong before timeout
-            ret = XDMA_DMA_TRANSFER_FINISHED;
-        }
-        //if wait is blocking, delete the completion
-        kfree(cmp);
-    }
+	if (trans->wait && status != DMA_COMPLETE) {
+		PRINT_DBG(" Waiting for completion... %p(%d)\n", cmp, cmp->done);
+		tmo = wait_for_completion_timeout(cmp, tmo);
+		status = dma_async_is_tx_complete(chan, cookie, NULL, NULL);
+		PRINT_DBG("  Finished t left: %lu completed: %d\n", tmo, status == DMA_COMPLETE);
+		if (0 == tmo ) {
+			printk(KERN_ERR "<%s> Error: transfer timed out\n",
+				MODULE_NAME);
+			ret = -1;
+		} else if (status != DMA_COMPLETE) {
+			printk(KERN_DEBUG
+				"<%s> transfer: returned completion callback status of: \'%s\'\n",
+				MODULE_NAME,
+				status == DMA_ERROR ? "error" : "in progress");
+			ret = -1;
+			//We may distinguish between error or in progress
+		} else {
+			//may need to check if something went wrong before timeout
+			ret = XDMA_DMA_TRANSFER_FINISHED;
+		}
+		//if wait is blocking, delete the completion
+		kfree(cmp);
+	}
 	return ret;
 }
 
@@ -630,15 +630,15 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 		xdma_stop_transfer((struct dma_chan *)chan);
 		break;
-    case XDMA_FINISH_TRANSFER:
-        PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_FINISHED_TRANSFER\n",
-                MODULE_NAME);
+	case XDMA_FINISH_TRANSFER:
+		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_FINISHED_TRANSFER\n",
+		        MODULE_NAME);
 		if (copy_from_user((void *)&trans,
 				   (const void __user *)arg,
 				   sizeof(struct xdma_transfer)))
 			return -EFAULT;
-        ret = xdma_finish_transfer(&trans);
-        break;
+		ret = xdma_finish_transfer(&trans);
+		break;
 	case XDMA_PREP_USR_BUF:
 		PRINT_DBG(KERN_DEBUG "<%s> ioctl; XDMA_PREP_USR_BUFFER\n", MODULE_NAME);
 		if (copy_from_user((void *)&buf_info,
@@ -696,7 +696,7 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 
 	default:
-        printk(KERN_DEBUG "<%s> ioctl: WARNING unknown ioctl command %d\n", MODULE_NAME, cmd);
+		printk(KERN_DEBUG "<%s> ioctl: WARNING unknown ioctl command %d\n", MODULE_NAME, cmd);
 		break;
 	}
 
@@ -749,18 +749,18 @@ static struct file_operations instr_fops = {
 };
 
 static void xdma_add_dev_info(struct dma_chan *tx_chan,
-			      struct dma_chan *rx_chan)
+	struct dma_chan *rx_chan)
 {
 	struct completion *tx_cmp, *rx_cmp;
 
 	tx_cmp = (struct completion *)
-	    kzalloc(sizeof(struct completion), GFP_KERNEL);
+		kzalloc(sizeof(struct completion), GFP_KERNEL);
 
 	rx_cmp = (struct completion *)
-	    kzalloc(sizeof(struct completion), GFP_KERNEL);
+		kzalloc(sizeof(struct completion), GFP_KERNEL);
 
 	xdma_dev_info[num_devices] = (struct xdma_dev *)
-	    kzalloc(sizeof(struct xdma_dev), GFP_KERNEL);
+		kzalloc(sizeof(struct xdma_dev), GFP_KERNEL);
 
 	xdma_dev_info[num_devices]->tx_chan = tx_chan;
 	xdma_dev_info[num_devices]->tx_cmp = tx_cmp;
@@ -823,16 +823,16 @@ static void xdma_init(void)
 
 	for (;;) {
 		match_tx = (DMA_MEM_TO_DEV & 0xFF) | XILINX_DMA_IP_DMA |
-		    (num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
+			(num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
 
 		tx_chan = dma_request_channel(mask, xdma_filter,
-					      (void *)&match_tx);
+			(void *)&match_tx);
 
 		match_rx = (DMA_DEV_TO_MEM & 0xFF) | XILINX_DMA_IP_DMA |
-		    (num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
+			(num_devices << XILINX_DMA_DEVICE_ID_SHIFT);
 
 		rx_chan = dma_request_channel(mask, xdma_filter,
-					      (void *)&match_rx);
+			(void *)&match_rx);
 
 		if (!tx_chan && !rx_chan) {
 			printk(KERN_DEBUG
@@ -853,14 +853,14 @@ static void xdma_init(void)
 static void xdma_cleanup(void)
 {
 	int i;
-    struct xdma_kern_buf *bdesc;
+	struct xdma_kern_buf *bdesc;
 	num_devices = 0;
 
 	for (i = 0; i < MAX_DEVICES; i++) {
 		if (xdma_dev_info[i]) {
 			if (xdma_dev_info[i]->tx_chan)
 				dma_release_channel((struct dma_chan *)
-						    xdma_dev_info[i]->tx_chan);
+					xdma_dev_info[i]->tx_chan);
 
 			if (xdma_dev_info[i]->tx_cmp)
 				kfree((struct completion *)
@@ -868,7 +868,7 @@ static void xdma_cleanup(void)
 
 			if (xdma_dev_info[i]->rx_chan)
 				dma_release_channel((struct dma_chan *)
-						    xdma_dev_info[i]->rx_chan);
+				                    xdma_dev_info[i]->rx_chan);
 
 			if (xdma_dev_info[i]->rx_cmp)
 				kfree((struct completion *)
@@ -876,12 +876,12 @@ static void xdma_cleanup(void)
 		}
 	}
 
-    //free all allocated dma buffers
-    while (!list_empty(&desc_list)) {
-        bdesc = list_first_entry(&desc_list, struct xdma_kern_buf, desc_list);
-        //this frees the buffer and deletes its descriptor from the list
-        xdma_release_kernel_buffer(bdesc);
-    }
+	//free all allocated dma buffers
+	while (!list_empty(&desc_list)) {
+		bdesc = list_first_entry(&desc_list, struct xdma_kern_buf, desc_list);
+		//this frees the buffer and deletes its descriptor from the list
+		xdma_release_kernel_buffer(bdesc);
+	}
 	kmem_cache_destroy(buf_handle_cache);
 }
 
