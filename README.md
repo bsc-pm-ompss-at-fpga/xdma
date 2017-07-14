@@ -17,59 +17,57 @@ sudo apt-get install linux-headers-$(uname -r)
 
 Once you have the kernel headers available, you can proceed with:
 
-    1. Clone the repository or download the latest stable version.
+  1. Clone the repository or download the latest stable version.
     ```
     git clone https://pm.bsc.es/gitlab/afilguer/xdma.git
     cd xdma
     ```
 
-    2. Enter the driver directory.
+  2. Enter the driver directory.
     ```
     cd driver
     ```
 
-    3. (Optional) If you are cross-compiling, set the `KDIR` environment variable with the folder containing the kernel headers.
-    Otherwise, they are expected to be in `/lib/modules/$(shell uname -r)/build` folder.
+  3. (Optional) If you are cross-compiling, set the `KDIR` environment variable with the folder containing the kernel headers.
+  Otherwise, they are expected to be in `/lib/modules/$(shell uname -r)/build` folder.
     ```
     export KDIR=/home/my_user/kernel-headers
     ```
  
-    4. Build the kernel module.
+  4. Build the kernel module.
     ```
     make
     ```
     
-    5. (Optional) Install the kernel module and udev rules.
+  5. (Optional) Install the kernel module and udev rules.
     ```
     make install
     ```
 
 
 ### Build the library
-    1. Clone the repository or download the latest stable version.
+  1. Clone the repository or download the latest stable version.
     ```
     git clone https://pm.bsc.es/gitlab/afilguer/xdma.git
     cd xdma
     ```
     
-    2. Enter the library directory.
+  2. Enter the library directory.
     ```
     cd lib
     ```
     
-    3. (Optional) If you are cross-compiling, set the `CROSS_COMPILE` environment variable.
-    For example:
+  3. (Optional) If you are cross-compiling, set the `CROSS_COMPILE` environment variable. For example:
     ```
     export CROSS_COMPILE=arm-linux-gnueabihf-
     ```
      
-    4. Build.
+  4. Build.
     ```
     make
     ```
     
-    5. (Optional) Install the files in `PREFIX` folder.
-    For example:
+  5. (Optional) Install the files in `PREFIX` folder. For example:
     ```
     make PREFIX=/opt/install-arm/libxdma install
     ```
