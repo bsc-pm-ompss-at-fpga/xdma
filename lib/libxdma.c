@@ -257,17 +257,14 @@ xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel
         ch_config->dir = XDMA_MEM_TO_DEV;
     }
 
-//NOTE: Seems that the following code is not needed in any kernel version
-//#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,0,0)
-//    //These should be configurable using flags (TODO)
-//    ch_config->coalesc = 1;
-//    ch_config->delay = 0;
-//    ch_config->reset = 0;
-//    if (ioctl(_fd, XDMA_DEVICE_CONTROL, ch_config) < 0) {
-//        perror("Error ioctl config rx chan");
-//        return XDMA_ERROR;
-//    }
-//#endif
+    //These should be configurable using flags (TODO)
+    ch_config->coalesc = XDMA_CH_CFG_COALESC_DEF;
+    ch_config->delay = XDMA_CH_CFG_DELAY_DEF;
+    ch_config->reset = XDMA_CH_CFG_RESET_DEF;
+    if (ioctl(_fd, XDMA_DEVICE_CONTROL, ch_config) < 0) {
+        perror("Error ioctl config rx chan");
+        return XDMA_ERROR;
+    }
     *channel = (xdma_channel)ch_config;
     return XDMA_SUCCESS;
 }

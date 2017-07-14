@@ -236,6 +236,30 @@ static void xdma_sync_callback(void *completion)
 	complete(completion);
 }
 
+static void xdma_device_control(struct xdma_chan_cfg *chan_cfg)
+{
+#if LINUX_KERNEL_VERSION_3XX
+	struct dma_chan *chan;
+	struct dma_device *chan_dev;
+	struct xilinx_dma_config config;
+
+	config.direction = xdma_to_dma_direction(chan_cfg->dir);
+	config.coalesc = chan_cfg->coalesc;
+	config.delay = chan_cfg->delay;
+	config.reset = chan_cfg->reset;
+
+	chan = (struct dma_chan *)chan_cfg->chan;
+
+	if (chan) {
+		chan_dev = chan->device;
+		chan_dev->device_control(chan, DMA_SLAVE_CONFIG,
+			(unsigned long)&config);
+	}
+#else
+	//NOTE: No action needed in the new drivers
+#endif
+}
+
 static int xdma_prep_user_buffer(struct xdma_buf_info * buf_info)
 {
 	int ret, i;
@@ -561,6 +585,7 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
 	struct xdma_dev xdma_dev;
+	struct xdma_chan_cfg chan_cfg;
 	struct xdma_buf_info buf_info;
 	struct xdma_transfer trans;
 	u32 devices;
@@ -593,6 +618,17 @@ static long xdma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				 &xdma_dev, sizeof(struct xdma_dev)))
 			return -EFAULT;
 
+		break;
+	case XDMA_DEVICE_CONTROL:
+		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_DEVICE_CONTROL\n",
+		       MODULE_NAME);
+
+		if (copy_from_user((void *)&chan_cfg,
+				   (const void __user *)arg,
+				   sizeof(struct xdma_chan_cfg)))
+			return -EFAULT;
+
+		xdma_device_control(&chan_cfg);
 		break;
 	case XDMA_PREP_BUF:
 		PRINT_DBG(KERN_DEBUG "<%s> ioctl: XDMA_PREP_BUF\n", MODULE_NAME);
