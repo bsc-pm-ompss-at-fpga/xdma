@@ -13,6 +13,7 @@ extern "C" {
 #include <stdlib.h>
 
 #define FILEPATH "/dev/xdma"
+#define INSTR_FILEPATH  "/dev/xdma_instr"
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
@@ -32,6 +33,9 @@ extern "C" {
         XDMA_SUCCESS = 0,   ///< Operation finished sucessfully
         XDMA_ERROR,         ///< Operation finished with an error
         XDMA_PENDING,       ///< Operation not yet finished
+        XDMA_EINVAL,        ///< Invalid operation arguments
+        XDMA_ENOMEM,        ///< Operation failed due to an error allocating memory
+        XDMA_EISINIT,       ///< Operation failed because is already initialized
     }xdma_status;
 
     /// Channel direcction
@@ -50,10 +54,29 @@ extern "C" {
         XDMA_CH_NONE,
     } xdma_channel_flags;
 
+    typedef enum {
+        XDMA_COMPUTE_DISABLE = 0,
+        XDMA_COMPUTE_ENABLE = 1,
+    } xdma_compute_flags;
+
+    typedef enum {
+        XDMA_BRAM = 0,
+        XDMA_PRIVATE = 1,
+        XDMA_GLOBAL = 2,
+    } xdma_mem_flags;
+
     typedef long unsigned int xdma_device;
     typedef long unsigned int xdma_channel;
     typedef long unsigned int xdma_transfer_handle;
     typedef void* xdma_buf_handle;
+    typedef unsigned int xdma_task_handle;
+
+    typedef struct {
+        uint64_t start;         //Acc start timestamp
+        uint64_t inTransfer;    //Timestamp after in transfers have finished
+        uint64_t computation;   //Timestamp after computation have finished
+        uint64_t outTransfer;   //Timestamp after output transfers have finished/acc end
+    } xdma_instr_times;
 
     /*!
      * Initialize the DMA userspace library & userspace library
@@ -171,7 +194,43 @@ extern "C" {
      */
     xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer);
 
+    xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress);
 
+    /*!
+     * Initialize the support for HW instrumentation.
+     * Note that the function will fail if the HW instrumentation support is not available in the loaded
+     * bitstream.
+     * \return  XDMA_SUCCESS  if the support is successfully initialized
+     *          XDMA_EISINIT  if the support is already initialized
+     *          XDMA_ERROR    otherwise
+     */
+    xdma_status xdmaInitHWInstrumentation();
+
+    /*!
+     * Finalize the support for HW instrumentation
+     * \return  XDMA_SUCCESS  if the support is successfully finalized
+     *          XDMA_ERROR    otherwise
+     */
+    xdma_status xdmaFiniHWInstrumentation();
+    xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes);
+
+
+    xdma_status xdmaGetDeviceTime(uint64_t *time);
+    int xdmaInstrumentationEnabled();
+
+    xdma_status xdmaInitTask(int accId, xdma_compute_flags compute,
+            xdma_task_handle *taskDescriptor);
+
+    xdma_status xdmaAddArg(xdma_task_handle taskHandle, size_t argId,
+            xdma_mem_flags flags, xdma_buf_handle buffer, size_t offset);
+
+    xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle taskHandle);
+
+    xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **times);
+
+    xdma_status xdmaWaitTask(xdma_task_handle handle);
+
+    xdma_status xdmaDeleteTask(xdma_task_handle *handle);
 
 #ifdef __cplusplus
 }
