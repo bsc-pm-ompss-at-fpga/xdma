@@ -28,12 +28,21 @@ Once you have the kernel headers available, you can proceed with:
     cd driver
     ```
 
-  3. (Optional) If you are cross-compiling, set the `KDIR` environment variable with the folder containing the kernel headers.
-  Otherwise, they are expected to be in `/lib/modules/$(shell uname -r)/build` folder.
+  3. (Optional) If you are cross-compiling, set `KDIR`, `CROSS_COMPILE` and `ARCH` environment variables.
+    * `KDIR` should point to the folder containing the kernel headers.
+    Otherwise, they are expected to be in `/lib/modules/$(shell uname -r)/build` folder.
     ```
     export KDIR=/home/my_user/kernel-headers
     ```
- 
+    * `ARCH` should be set to the target architecture you're compiling to.
+    ```
+    export ARCH=arm
+    ```
+    * `CROSS_COMPILE` must contain the build triplet for your target system.
+    ```
+    export CROSS_COMPILE=arm-linux-gnueabihf-
+    ```
+    
   4. Build the kernel module.
     ```
     make
