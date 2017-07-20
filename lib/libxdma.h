@@ -105,22 +105,14 @@ extern "C" {
     xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs);
 
     /*!
-     * Open device channel
+     * Get the device channel handle
      * Each device can have 1 input + 1 output channel
      *
-     * \param[in] device    Device that will be connected to the channel
+     * \param[in] device     Device that will be connected to the channel
      * \param[in] direction  Direction of the channel
-     * \param[in] flags     Channel flags (TBD)
-     * \param[out] channel  Handle to the recently open channel
+     * \param[out] channel   Handle to the channel
      */
-    xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel_flags flags, xdma_channel *channel);
-    /*!
-     * Close a DMA channel and release its resources
-     *
-     * \param[in,out] channel   DMA channel which will be closed
-     */
-    xdma_status xdmaCloseChannel(xdma_channel *channel);
-
+    xdma_status xdmaGetDeviceChannel(xdma_device device, xdma_dir direction, xdma_channel *channel);
 
     /*!
      * Allocate a buffer in kernel space to be transferred to a xDMA device

@@ -85,9 +85,9 @@ int main(int argc, char *argv[]) {
     checkError(status, "Error getting platform devices\n");
 
     xdma_channel inChannel, outChannel;
-    status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel);
+    status = xdmaGetDeviceChannel(dev, XDMA_TO_DEVICE, &inChannel);
     checkError(status, "Error opening input channel\n");
-    status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel);
+    status = xdmaGetDeviceChannel(dev, XDMA_FROM_DEVICE, &outChannel);
     checkError(status, "Error opening output channel\n");
 
     //transfer data
@@ -156,8 +156,6 @@ int main(int argc, char *argv[]) {
     xdmaFreeKernelBuffer(result, resultHandle);
     //in =  malloc(len*sizeof(int));
     //out = malloc(len*sizeof(int));
-    xdmaCloseChannel(&inChannel);
-    xdmaCloseChannel(&outChannel);
 
     xdmaClose();
 

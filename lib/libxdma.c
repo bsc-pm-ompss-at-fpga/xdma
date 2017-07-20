@@ -38,6 +38,7 @@ static pthread_mutex_t *_submitMutexes;
 static int _open_cnt = 0;
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
+static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction);
 
 typedef struct {
     struct {
@@ -151,9 +152,8 @@ xdma_status xdmaOpen() {
     xdmaGetDevices(numDevices, devices, NULL);
     for (int i=0; i<numDevices; i++) {
         //need te run channel configuration to initialize the channel table
-        xdma_channel dummy_channel;
-        xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE, XDMA_CH_NONE, &dummy_channel);
-        xdmaOpenChannel(devices[i], XDMA_TO_DEVICE, XDMA_CH_NONE, &dummy_channel);
+        xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE);
+        xdmaOpenChannel(devices[i], XDMA_TO_DEVICE);
     }
 
     return XDMA_SUCCESS;
@@ -239,8 +239,19 @@ xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs){
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel_flags flags, xdma_channel *channel) {
-    //Already initialized channels are not checked
+xdma_status xdmaGetDeviceChannel(xdma_device device, xdma_dir direction, xdma_channel *channel) {
+    struct xdma_chan_cfg *ch_config;
+    struct xdma_dev *dev;
+
+    dev = (struct xdma_dev*)device;
+    int devNumber = (dev - _devices);
+    ch_config = &_channels[devNumber*CHANNELS_PER_DEVICE + direction];
+    *channel = (xdma_channel)ch_config;
+
+    return XDMA_SUCCESS;
+}
+
+static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction) {
     struct xdma_chan_cfg *ch_config;
     struct xdma_dev *dev;
 
@@ -257,7 +268,6 @@ xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel
         ch_config->dir = XDMA_MEM_TO_DEV;
     }
 
-    //These should be configurable using flags (TODO)
     ch_config->coalesc = XDMA_CH_CFG_COALESC_DEF;
     ch_config->delay = XDMA_CH_CFG_DELAY_DEF;
     ch_config->reset = XDMA_CH_CFG_RESET_DEF;
@@ -265,12 +275,6 @@ xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction, xdma_channel
         perror("Error ioctl config rx chan");
         return XDMA_ERROR;
     }
-    *channel = (xdma_channel)ch_config;
-    return XDMA_SUCCESS;
-}
-
-xdma_status xdmaCloseChannel(xdma_channel *channel) {
-    //Not necessary at this point
     return XDMA_SUCCESS;
 }
 

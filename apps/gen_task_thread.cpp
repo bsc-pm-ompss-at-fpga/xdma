@@ -65,8 +65,8 @@ void *genTaskThread(void *tArgs) {
     thread_args_t *args = (thread_args_t*)tArgs;
     xdma_channel inChannel, outChannel;
 
-    xdmaOpenChannel(args->device, XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel);
-    xdmaOpenChannel(args->device, XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel);
+    xdmaGetDeviceChannel(args->device, XDMA_TO_DEVICE, &inChannel);
+    xdmaGetDeviceChannel(args->device, XDMA_FROM_DEVICE, &outChannel);
 
     std::queue<xdma_transfer_handle> inQueue;
     std::queue<xdma_transfer_handle> outQueue;
