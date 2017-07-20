@@ -48,11 +48,7 @@ extern "C" {
     typedef enum {
         XDMA_ASYNC = 0,     ///< Asynchronous transfer (non blocking)
         XDMA_SYNC = 1,      ///< Synchronous transfer (blocking)
-    }xdma_xfer_mode;
-
-    typedef enum {
-        XDMA_CH_NONE,
-    } xdma_channel_flags;
+    } xdma_xfer_mode;
 
     typedef enum {
         XDMA_COMPUTE_DISABLE = 0,
