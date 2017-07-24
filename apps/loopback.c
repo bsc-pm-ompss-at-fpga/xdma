@@ -62,12 +62,12 @@ int main(int argc, char *argv[]) {
     }
     dev = devices[acc];
     xdma_channel inChannel, outChannel;
-    status = xdmaOpenChannel(dev, XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel);
+    status = xdmaGetDeviceChannel(dev, XDMA_TO_DEVICE, &inChannel);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error opening input channel\n");
         exit(1);
     }
-    status = xdmaOpenChannel(dev, XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel);
+    status = xdmaGetDeviceChannel(dev, XDMA_FROM_DEVICE, &outChannel);
     if (status != XDMA_SUCCESS) {
         fprintf(stderr, "Error opening output channel\n");
         exit(1);
@@ -110,8 +110,6 @@ int main(int argc, char *argv[]) {
     } else {
         printf("PASS\n");
     }
-    xdmaCloseChannel(&inChannel);
-    xdmaCloseChannel(&outChannel);
 
     xdmaFreeKernelBuffer(inData, inHandle);
     xdmaFreeKernelBuffer(outData, outHandle);

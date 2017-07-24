@@ -98,8 +98,8 @@ int main(int argc, char **argv) {
 
     xdma_channel inChannel[MAX_DMA_DEVICES], outChannel[MAX_DMA_DEVICES];
     for (int i=0; i<ndevs; i++) {
-        xdmaOpenChannel(devices[i], XDMA_TO_DEVICE, XDMA_CH_NONE, &inChannel[i]);
-        xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE, XDMA_CH_NONE, &outChannel[i]);
+        xdmaGetDeviceChannel(devices[i], XDMA_TO_DEVICE, &inChannel[i]);
+        xdmaGetDeviceChannel(devices[i], XDMA_FROM_DEVICE, &outChannel[i]);
     }
     std::queue<xdma_transfer_handle> inQueue;
     std::queue<xdma_transfer_handle> outQueue;
