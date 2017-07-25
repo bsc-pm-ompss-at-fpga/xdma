@@ -65,7 +65,7 @@ extern "C" {
     typedef long unsigned int xdma_channel;
     typedef long unsigned int xdma_transfer_handle;
     typedef void* xdma_buf_handle;
-    typedef unsigned int xdma_task_handle;
+    typedef int xdma_task_handle;
 
     typedef struct {
         uint64_t start;         //Acc start timestamp
