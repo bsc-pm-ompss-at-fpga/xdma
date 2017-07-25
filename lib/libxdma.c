@@ -672,12 +672,18 @@ xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **time
 
 xdma_status xdmaWaitTask(xdma_task_handle handle) {
     xdma_status retD, retS;
+
+    if (handle < 0) return XDMA_EINVAL;
+
     retD = xdmaWaitTransfer(taskEntries[handle].descriptorTx);
     retS = xdmaWaitTransfer(taskEntries[handle].syncTx);
     return retD == XDMA_SUCCESS ? retS : retD;
 }
 
 xdma_status xdmaDeleteTask(xdma_task_handle *handle) {
+
+    if (*handle < 0) return XDMA_EINVAL;
+
     //Mark instrument entries as free
     memset(&instrumentEntries[*handle], 0, sizeof(xdma_instrument_entry));
     *handle = -1;
