@@ -34,7 +34,7 @@
          we could not determine your kernel version
 #endif
 
-#define DEBUG_PRINT 1
+//#define DEBUG_PRINT 1
 #define DBG_MEM_COMPAT	"xlnx,axi-bram-ctrl-4.0"
 #define CHAN_NAME_MAX_LEN	32
 
