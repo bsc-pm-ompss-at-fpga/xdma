@@ -12,6 +12,7 @@
 hls_*
 arm-linux-gnueabihf-*
 libxdma-static.a
+libxdma_version.h
 apps/gen-task_ompss
 apps/gen_task
 apps/loopback
@@ -21,4 +22,3 @@ apps/matmul_ompss
 apps/matmul_ompss.i
 lib/html/
 lib/latex/
-
