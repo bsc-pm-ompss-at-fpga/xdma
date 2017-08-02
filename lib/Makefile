@@ -21,21 +21,18 @@ doc:
 	doxygen
 
 .PHONY: libxdma_version.h
-libxdma_version.h:
-	@echo "#ifndef __LIBXDMA_VERSION_H__" >libxdma_version.h
-	@echo "#define __LIBXDMA_VERSION_H__" >>libxdma_version.h
-	@echo "" >>libxdma_version.h
-	@echo "/* Build commit" >>libxdma_version.h
-	git show -s >>libxdma_version.h
-	@echo "*/" >>libxdma_version.h
-	@echo "#define XDMA_COMMIT_INFO \\" >>libxdma_version.h
-	@git show -s --format=%H >>libxdma_version.h
-	@echo "" >>libxdma_version.h
-	@echo "/* Build branch and status" >>libxdma_version.h
-	git status -b -s >>libxdma_version.h
-	@echo "*/" >>libxdma_version.h
-	@echo "" >>libxdma_version.h
-	@echo "#endif" >>libxdma_version.h
+libxdma_version.h: libxdma_version_template.h
+	@head -n 6 $^ >$@
+	@echo "/* Build commit" >>$@
+	git show -s >>$@
+	@echo "*/" >>$@
+	@echo "#define LIBXTASKS_VER_COMMIT \\" >>$@
+	@git show -s --format=%H >>$@
+	@echo "" >>$@
+	@echo "/* Build branch and status" >>$@
+	git status -b -s >>$@
+	@echo "*/" >>$@
+	@tail -n 2 $^ >>$@
 
 install: libxdma.so libxdma-static.a libxdma.h libxdma_version.h
 	mkdir -p $(PREFIX)/lib
