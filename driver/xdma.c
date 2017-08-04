@@ -34,7 +34,7 @@
          we could not determine your kernel version
 #endif
 
-#define DEBUG_PRINT 1
+//#define DEBUG_PRINT 1
 #define DBG_MEM_COMPAT	"xlnx,axi-bram-ctrl-4.0"
 #define CHAN_NAME_MAX_LEN	32
 
@@ -76,6 +76,7 @@ static struct xdma_dev *xdma_dev_info[MAX_DEVICES + 1];
 static u32 num_devices;
 static void xdma_init(void);
 static void xdma_cleanup(void);
+static void xdma_free_buffers(void);
 
 /* save a list of dma buffers so they an be deleted in case the application
  * does not free them (in case of an abnormal abort)
@@ -89,6 +90,8 @@ static int xdma_open(struct inode *i, struct file *f)
 
 static int xdma_close(struct inode *i, struct file *f)
 {
+	PRINT_DBG("Closing: delete stall buffers");
+	xdma_free_buffers();
 	return 0;
 }
 
@@ -886,10 +889,21 @@ static void xdma_init(void)
 }
 #endif
 
+static void xdma_free_buffers(void)
+{
+	struct xdma_kern_buf *bdesc;
+
+	//free all allocated dma buffers
+	while (!list_empty(&desc_list)) {
+		bdesc = list_first_entry(&desc_list, struct xdma_kern_buf, desc_list);
+		//this frees the buffer and deletes its descriptor from the list
+		xdma_release_kernel_buffer(bdesc);
+	}
+}
+
 static void xdma_cleanup(void)
 {
 	int i;
-	struct xdma_kern_buf *bdesc;
 	num_devices = 0;
 
 	for (i = 0; i < MAX_DEVICES; i++) {
@@ -912,12 +926,7 @@ static void xdma_cleanup(void)
 		}
 	}
 
-	//free all allocated dma buffers
-	while (!list_empty(&desc_list)) {
-		bdesc = list_first_entry(&desc_list, struct xdma_kern_buf, desc_list);
-		//this frees the buffer and deletes its descriptor from the list
-		xdma_release_kernel_buffer(bdesc);
-	}
+	xdma_free_buffers();
 	kmem_cache_destroy(buf_handle_cache);
 }
 
