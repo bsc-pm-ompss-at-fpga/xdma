@@ -19,7 +19,7 @@ Once you have the kernel headers available, you can proceed with:
 
   1. Clone the repository or download the latest stable version.
     ```
-    git clone https://pm.bsc.es/gitlab/afilguer/xdma.git
+    git clone https://pm.bsc.es/gitlab/ompss-at-fpga/xdma.git
     cd xdma
     ```
 
@@ -57,7 +57,7 @@ Once you have the kernel headers available, you can proceed with:
 ### Build the library
   1. Clone the repository or download the latest stable version.
     ```
-    git clone https://pm.bsc.es/gitlab/afilguer/xdma.git
+    git clone https://pm.bsc.es/gitlab/ompss-at-fpga/xdma.git
     cd xdma
     ```
     
