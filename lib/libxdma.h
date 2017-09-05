@@ -35,7 +35,8 @@ extern "C" {
         XDMA_PENDING,       ///< Operation not yet finished
         XDMA_EINVAL,        ///< Invalid operation arguments
         XDMA_ENOMEM,        ///< Operation failed due to an error allocating memory
-        XDMA_EISINIT,       ///< Operation failed because is already initialized
+        XDMA_EACCES,        ///< Operation failed because user does not have access
+        XDMA_ENOENT,        ///< Operation failed because device does not exist
     } xdma_status;
 
     /// Channel direcction

@@ -19,6 +19,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <stddef.h>
+#include <errno.h>
 
 #define BUS_IN_BYTES 4
 #define BUS_BURST 16
@@ -55,8 +56,19 @@ xdma_status xdmaOpen() {
     //TODO: check if library has been initialized
     _fd = open(FILEPATH, O_RDWR | O_CREAT | O_TRUNC, (mode_t) 0600);
     if (_fd == -1) {
-        perror("Error opening file for writing");
-        return XDMA_ERROR;
+        //perror("Error opening file for writing");
+        xdma_status ret = XDMA_ERROR;
+        switch (errno) {
+            case EACCES: //User cannot access device
+                ret = XDMA_EACCES;
+                break;
+            case ENOENT: //Device not available
+                ret = XDMA_ENOENT;
+                break;
+            case default;
+                break;
+        }
+        return ret;
     }
 
     //Initialize mutex
@@ -425,13 +437,24 @@ xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress)
 }
 
 xdma_status xdmaInitHWInstrumentation() {
-    if (_instr_fd > 0) return XDMA_EISINIT;
+    if (_instr_fd > 0) return XDMA_SUCCESS;
 
     //Open instrumentation file
     _instr_fd = open(INSTR_FILEPATH, O_RDONLY);
     if (_instr_fd == -1) {
-        perror("Error opening instrumentation device file for reading");
-        return XDMA_ERROR;
+        //perror("Error opening instrumentation device file for reading");
+        xdma_status ret = XDMA_ERROR;
+        switch (errno) {
+            case EACCES: //User cannot access instrumentation device
+                ret = XDMA_EACCES;
+                break;
+            case ENOENT: //Instrumentation not available
+                ret = XDMA_ENOENT;
+                break;
+            case default;
+                break;
+        }
+        return ret;
     }
     return XDMA_SUCCESS;
 }
@@ -444,6 +467,8 @@ xdma_status xdmaFiniHWInstrumentation() {
 }
 
 xdma_status xdmaGetDeviceTime(uint64_t *time) {
+    if (_instr_fd <= 0) return XDMA_ENOENT;
+
     int rd;
     rd = read(_instr_fd, time, sizeof(uint64_t));
     //FIXME: clear high 32bit until HW actually returns 64 bit timestamps
