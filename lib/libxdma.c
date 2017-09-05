@@ -54,7 +54,7 @@ xdma_status xdmaOpen() {
     _kUsedSpace = 0;
     _instr_fd = 0;
     //TODO: check if library has been initialized
-    _fd = open(FILEPATH, O_RDWR | O_CREAT | O_TRUNC, (mode_t) 0600);
+    _fd = open(FILEPATH, O_RDWR | O_TRUNC);
     if (_fd == -1) {
         //perror("Error opening file for writing");
         xdma_status ret = XDMA_ERROR;
