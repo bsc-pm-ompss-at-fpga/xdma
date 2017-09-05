@@ -65,8 +65,6 @@ xdma_status xdmaOpen() {
             case ENOENT: //Device not available
                 ret = XDMA_ENOENT;
                 break;
-            case default;
-                break;
         }
         return ret;
     }
@@ -450,8 +448,6 @@ xdma_status xdmaInitHWInstrumentation() {
                 break;
             case ENOENT: //Instrumentation not available
                 ret = XDMA_ENOENT;
-                break;
-            case default;
                 break;
         }
         return ret;
