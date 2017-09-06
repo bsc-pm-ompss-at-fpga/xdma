@@ -35,8 +35,9 @@ extern "C" {
         XDMA_PENDING,       ///< Operation not yet finished
         XDMA_EINVAL,        ///< Invalid operation arguments
         XDMA_ENOMEM,        ///< Operation failed due to an error allocating memory
-        XDMA_EISINIT,       ///< Operation failed because is already initialized
-    }xdma_status;
+        XDMA_EACCES,        ///< Operation failed because user does not have access
+        XDMA_ENOENT,        ///< Operation failed because device does not exist
+    } xdma_status;
 
     /// Channel direcction
     typedef enum {
@@ -50,29 +51,10 @@ extern "C" {
         XDMA_SYNC = 1,      ///< Synchronous transfer (blocking)
     } xdma_xfer_mode;
 
-    typedef enum {
-        XDMA_COMPUTE_DISABLE = 0,
-        XDMA_COMPUTE_ENABLE = 1,
-    } xdma_compute_flags;
-
-    typedef enum {
-        XDMA_BRAM = 0,
-        XDMA_PRIVATE = 1,
-        XDMA_GLOBAL = 2,
-    } xdma_mem_flags;
-
     typedef long unsigned int xdma_device;
     typedef long unsigned int xdma_channel;
     typedef long unsigned int xdma_transfer_handle;
     typedef void* xdma_buf_handle;
-    typedef int xdma_task_handle;
-
-    typedef struct {
-        uint64_t start;         //Acc start timestamp
-        uint64_t inTransfer;    //Timestamp after in transfers have finished
-        uint64_t computation;   //Timestamp after computation have finished
-        uint64_t outTransfer;   //Timestamp after output transfers have finished/acc end
-    } xdma_instr_times;
 
     /*!
      * Initialize the DMA userspace library & userspace library
@@ -200,25 +182,10 @@ extern "C" {
      *          XDMA_ERROR    otherwise
      */
     xdma_status xdmaFiniHWInstrumentation();
-    xdma_status xdmaClearTaskTimes(xdma_instr_times *taskTimes);
-
 
     xdma_status xdmaGetDeviceTime(uint64_t *time);
     int xdmaInstrumentationEnabled();
-
-    xdma_status xdmaInitTask(int accId, xdma_compute_flags compute,
-            xdma_task_handle *taskDescriptor);
-
-    xdma_status xdmaAddArg(xdma_task_handle taskHandle, size_t argId,
-            xdma_mem_flags flags, xdma_buf_handle buffer, size_t offset);
-
-    xdma_status xdmaSendTask(xdma_device dev, xdma_task_handle taskHandle);
-
-    xdma_status xdmaGetInstrumentData(xdma_task_handle task, xdma_instr_times **times);
-
-    xdma_status xdmaWaitTask(xdma_task_handle handle);
-
-    xdma_status xdmaDeleteTask(xdma_task_handle *handle);
+    unsigned long xdmaGetInstrumentationTimerAddr();
 
 #ifdef __cplusplus
 }

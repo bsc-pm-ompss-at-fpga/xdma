@@ -20,13 +20,27 @@ libxdma-static.a : libxdma.o
 doc:
 	doxygen
 
-install: libxdma.so libxdma-static.a libxdma.h
+.PHONY: libxdma_version.h
+libxdma_version.h: libxdma_version_template.h
+	@head -n 6 $^ >$@
+	@echo "/* Build commit" >>$@
+	git show -s >>$@
+	@echo "*/" >>$@
+	@echo "#define LIBXDMA_VERSION_COMMIT \\" >>$@
+	@git show -s --format=%H >>$@
+	@echo "" >>$@
+	@echo "/* Build branch and status" >>$@
+	git status -b -s >>$@
+	@echo "*/" >>$@
+	@tail -n 2 $^ >>$@
+
+install: libxdma.so libxdma-static.a libxdma.h libxdma_version.h
 	mkdir -p $(PREFIX)/lib
 	cp libxdma.so libxdma-static.a $(PREFIX)/lib/
 	mkdir -p $(PREFIX)/include
-	cp libxdma.h $(PREFIX)/include/
+	cp libxdma.h libxdma_version.h $(PREFIX)/include/
 
 .PHONY : clean
 clean :
-	rm -f *.o libxdma.so libxdma-static.a
+	rm -f *.o libxdma.so libxdma-static.a libxdma_version.h
 	rm -rf html latex
