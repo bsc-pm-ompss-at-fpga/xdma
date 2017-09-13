@@ -31,6 +31,10 @@ extern "C" {
 #define XDMA_RELEASE_KBUF	_IO(XDMA_IOCTL_BASE, 11)
 #define XDMA_GET_DMA_ADDRESS	_IO(XDMA_IOCTL_BASE, 12)
 
+#define XDMA_INSTR_IOCTL_BASE	'I'
+#define XDMA_INSTR_GET_ADDR	_IOR(XDMA_INSTR_IOCTL_BASE, 0, unsigned long)
+//#define XDMA_INSTR_GET_ADDR	_IO(XDMA_IOCTL_BASE, 100)
+
 
 	enum xdma_direction {
 		XDMA_MEM_TO_DEV,

@@ -55,6 +55,7 @@ static struct device *instr_dev;
 static struct cdev instr_c_dev;
 static void __iomem *instr_io_addr;
 static int has_instrumentation;
+static unsigned long instr_phy_addr;
 
 struct xdma_sg_mem {
 	struct sg_table sg_tbl;
@@ -780,11 +781,29 @@ ssize_t xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *of
 	return sizeof(u64);
 }
 
+static long xdma_instr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+
+	printk("instrumentation ioctl: %lu\n", cmd);
+	switch (cmd) {
+	case XDMA_INSTR_GET_ADDR:
+		printk("<xdma-instr> get inst addr %lu\n", instr_phy_addr);
+		if (copy_to_user((unsigned long*)arg, &instr_phy_addr, sizeof(unsigned long)))
+			return -EFAULT;
+		break;
+	default:
+		return -EINVAL;
+
+	}
+	return 0;
+}
+
 static struct file_operations instr_fops = {
 	.owner = THIS_MODULE,
 	.open = xdma_instr_open,
 	.release = xdma_instr_close,
 	.read = xdma_instr_read,
+	.unlocked_ioctl = xdma_instr_ioctl,
 };
 
 static void xdma_add_dev_info(struct dma_chan *tx_chan,
@@ -942,6 +961,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	int status;
 	num_devices = 0;
 	has_instrumentation = 0;
+	instr_phy_addr = 0;
 
 	//Save platform device structure for later use
 	xdma_pdev = pdev;
@@ -1018,6 +1038,8 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	instr_io_addr = ioremap((resource_size_t)instr_mem_space[0],
 			(size_t)instr_mem_space[1]);
 
+	//Save physical address for later use
+	instr_phy_addr = instr_mem_space[0];
 	has_instrumentation = 1;
 	printk(KERN_DEBUG "<%s> xdma intrumentation initalized\n", MODULE_NAME);
 	return 0;
