@@ -41,8 +41,6 @@ static int _open_cnt = 0;
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction);
 
-#define INSTRUMENT_HW_COUNTER_ADDR   0X80000000
-
 xdma_status xdmaOpen() {
     int open_cnt;
 
@@ -481,6 +479,13 @@ int xdmaInstrumentationEnabled() {
     return (_instr_fd > 0);
 }
 
-unsigned long xdmaGetInstrumentationTimerAddr() {
-    return INSTRUMENT_HW_COUNTER_ADDR;
+uint64_t xdmaGetInstrumentationTimerAddr() {
+    int status;
+    uint64_t addr;
+    status = ioctl(_instr_fd, XDMA_INSTR_GET_ADDR, &addr);
+    if (status) {
+        perror("Could not get instrumentation address");
+        return 0;
+    }
+    return addr;
 }
