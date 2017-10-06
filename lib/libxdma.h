@@ -185,7 +185,7 @@ extern "C" {
 
     xdma_status xdmaGetDeviceTime(uint64_t *time);
     int xdmaInstrumentationEnabled();
-    unsigned long xdmaGetInstrumentationTimerAddr();
+    uint64_t xdmaGetInstrumentationTimerAddr();
 
 #ifdef __cplusplus
 }
