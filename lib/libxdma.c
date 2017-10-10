@@ -480,6 +480,8 @@ int xdmaInstrumentationEnabled() {
 }
 
 uint64_t xdmaGetInstrumentationTimerAddr() {
+    if (_instr_fd <= 0) return 0;
+
     int status;
     uint64_t addr;
     status = ioctl(_instr_fd, XDMA_INSTR_GET_ADDR, &addr);
