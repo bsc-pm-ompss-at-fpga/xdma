@@ -314,7 +314,10 @@ xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma
     buf.buf_size = (u32) len;
     buf.dir = channel->dir;
 
+    pthread_mutex_t * devMutex = &(_submitMutexes[device - _devices]);
+    pthread_mutex_lock(devMutex);
     if (ioctl(_fd, XDMA_PREP_USR_BUF, &buf) < 0) {
+        pthread_mutex_unlock(devMutex);
         perror("Error submitting userspace buffer");
         return XDMA_ERROR;
     }
@@ -333,12 +336,14 @@ xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma
     tx->wait = mode & XDMA_SYNC;
     tx->sg_transfer = buf.sg_transfer;
     if (ioctl(_fd, XDMA_START_TRANSFER, tx) < 0) {
+        pthread_mutex_unlock(devMutex);
         perror("Error starting SG transfer");
         if (mode == XDMA_ASYNC) {
             free(tx);
         }
         return XDMA_ERROR;
     }
+    pthread_mutex_unlock(devMutex);
 
     if (mode == XDMA_ASYNC) {
         *transfer = (xdma_transfer_handle)tx;
