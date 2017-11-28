@@ -35,8 +35,8 @@
 #endif
 
 //#define DEBUG_PRINT 1
-#define DBG_MEM_COMPAT	"xlnx,axi-bram-ctrl-4.0"
 #define CHAN_NAME_MAX_LEN	32
+#define TRACE_REF_NAME  "instrument-timer"
 
 #ifdef DEBUG_PRINT
 #define PRINT_DBG(...) printk( __VA_ARGS__)
@@ -951,8 +951,8 @@ static void xdma_cleanup(void)
 
 static int xdma_driver_probe(struct platform_device *pdev)
 {
-	struct device_node *device_tree;
 	struct device_node *trace_bram;
+	struct device_node *xdma_node;
 #if TARGET_64_BITS
 	u64 instr_mem_space[2];
 #else
@@ -992,9 +992,12 @@ static int xdma_driver_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&desc_list);
 
-	//Look for bram controller for debug time reading
-	device_tree = of_node_get(of_root);
-	trace_bram = of_find_compatible_node(device_tree, NULL, DBG_MEM_COMPAT);
+	//Look for bram controller for instrumentation time reading
+	xdma_node = pdev->dev.of_node;
+	trace_bram = of_parse_phandle(xdma_node, TRACE_REF_NAME, 0);
+
+
+
 	if (!trace_bram) {
 		printk(KERN_INFO "<%s> No acc debug hardware found", MODULE_NAME);
 		return 0;
