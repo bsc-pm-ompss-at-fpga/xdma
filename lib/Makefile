@@ -23,7 +23,7 @@ doc:
 .PHONY: libxdma_version.h
 libxdma_version.h: libxdma_version_template.h
 	@head -n 6 $^ >$@
-ifeq (x$(shell git rev-parse --is-inside-work-tree 2>/dev/null), xtrue)
+ifeq (x$(shell git rev-parse --is-bare-repository 2>/dev/null), xfalse)
 	@echo "/* Build commit" >>$@
 	git show -s >>$@
 	@echo "*/" >>$@
