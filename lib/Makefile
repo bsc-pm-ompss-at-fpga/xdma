@@ -23,6 +23,7 @@ doc:
 .PHONY: libxdma_version.h
 libxdma_version.h: libxdma_version_template.h
 	@head -n 6 $^ >$@
+ifeq (x$(shell git rev-parse --is-inside-work-tree 2>/dev/null), xtrue)
 	@echo "/* Build commit" >>$@
 	git show -s >>$@
 	@echo "*/" >>$@
@@ -32,6 +33,10 @@ libxdma_version.h: libxdma_version_template.h
 	@echo "/* Build branch and status" >>$@
 	git status -b -s >>$@
 	@echo "*/" >>$@
+else
+	@echo "#define LIBXDMA_VERSION_COMMIT \\" >>$@
+	@echo "unknown" >>$@
+endif
 	@tail -n 2 $^ >>$@
 
 install: libxdma.so libxdma-static.a libxdma.h libxdma_version.h
