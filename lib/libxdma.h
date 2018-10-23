@@ -12,12 +12,6 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 
-#define FILEPATH "/dev/xdma"
-#define INSTR_FILEPATH  "/dev/xdma_instr"
-#define MAP_SIZE  (33554432)
-#define FILESIZE (MAP_SIZE * sizeof(uint8_t))
-
-
 	enum xdma_wait {
 		XDMA_WAIT_NONE = 0,
 		XDMA_WAIT_SRC = (1 << 0),

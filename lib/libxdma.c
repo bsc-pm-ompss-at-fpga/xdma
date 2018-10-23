@@ -1,5 +1,10 @@
 #include "libxdma.h"
 
+#define FILEPATH "/dev/xdma"
+#define INSTR_FILEPATH  "/dev/xdma_instr"
+#define MAP_SIZE  (33554432)
+#define FILESIZE (MAP_SIZE * sizeof(uint8_t))
+
 // the below defines are a hack that enables the use of kernel data types
 // without having to included standard kernel headers
 #define u32 uint32_t
@@ -496,3 +501,8 @@ uint64_t xdmaGetInstrumentationTimerAddr() {
     }
     return addr;
 }
+
+#undef FILEPATH
+#undef INSTR_FILEPATH
+#undef MAP_SIZE
+#undef FILESIZE
