@@ -44,6 +44,7 @@
 #define PRINT_DBG(...)
 #endif
 
+static int opens_cnt;      // Global counter of device opens
 static dev_t dev_num;		// Global variable for the device number
 static struct cdev c_dev;	// Global variable for the character device structure
 static struct class *cl;	// Global variable for the device class
@@ -86,13 +87,26 @@ static struct list_head desc_list;
 
 static int xdma_open(struct inode *i, struct file *f)
 {
+	//Allow only one process using the device at the same time
+	//NOTE: Not optimizing with initial check as f&a will almost always succed
+	if (__sync_fetch_and_add(&opens_cnt, 1) > 0) {
+		__sync_sub_and_fetch(&opens_cnt, 1);
+		printk(KERN_DEBUG "<%s> open: Device already opened\n", MODULE_NAME);
+		return -EBUSY;
+	}
 	return 0;
 }
 
 static int xdma_close(struct inode *i, struct file *f)
 {
-	PRINT_DBG("Closing: delete stall buffers");
-	xdma_free_buffers();
+	int cnt = __sync_sub_and_fetch(&opens_cnt, 1);
+	if (cnt < 0) {
+		printk(KERN_WARNING MODULE_NAME ": "
+			"device has been closed more times than opened\n");
+	} else if (cnt == 0) {
+		printk(KERN_DEBUG "<%s> close: Delete stall buffers\n", MODULE_NAME);
+		xdma_free_buffers();
+	}
 	return 0;
 }
 
@@ -962,6 +976,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	num_devices = 0;
 	has_instrumentation = 0;
 	instr_phy_addr = 0;
+	opens_cnt = 0;
 
 	//Save platform device structure for later use
 	xdma_pdev = pdev;
@@ -1050,6 +1065,10 @@ static int xdma_driver_probe(struct platform_device *pdev)
 
 static int xdma_driver_exit(struct platform_device *pdev)
 {
+	if (opens_cnt != 0) {
+		printk(KERN_INFO "<%s> exit: Opens counter is not zero\n", MODULE_NAME);
+	}
+
 	/* Destroy instrumentation device if necessary */
 	if (has_instrumentation) {
 		cdev_del(&instr_c_dev);
