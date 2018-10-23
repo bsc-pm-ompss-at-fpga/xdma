@@ -46,6 +46,17 @@ static int _open_cnt = 0;
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction);
 
+typedef enum {
+    ALLOC_HOST, ALLOC_DEVICE
+} alloc_type_t;
+
+// Internal library representation of an alloc
+typedef struct {
+    alloc_type_t type;      ///< Type of allocation
+    unsigned long handle;   ///< Device driver handle
+    void * ptr;             ///< Map pointer in userspace
+} alloc_info_t;
+
 xdma_status xdmaOpen() {
     int open_cnt;
 
@@ -210,7 +221,7 @@ static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction) {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, size_t len) {
+xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len) {
     //TODO: Check that mmap + ioctl are performet atomically
     unsigned long ret;
     unsigned int status;
@@ -230,30 +241,47 @@ xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, siz
         munmap(buffer, len);
         return XDMA_ERROR;
     }
-    *handle = (xdma_buf_handle)ret;
+    alloc_info_t *info = (alloc_info_t *)malloc(sizeof(alloc_info_t));
+    info->type = ALLOC_HOST;
+    info->handle = ret;
+    info->ptr = *buffer;
+    *handle = (xdma_buf_handle)info;
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaFreeKernelBuffer(void *buffer, xdma_buf_handle handle) {
+xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len) {
+    void *ptr;
+    alloc_info_t *info;
+    xdma_status stat = xdmaAllocateHost(&ptr, (xdma_buf_handle)&info, len);
+    if (stat == XDMA_SUCCESS) {
+        info->type = ALLOC_DEVICE;
+        *handle = (xdma_buf_handle)info;
+    }
+    return stat;
+}
 
+xdma_status xdmaFree(xdma_buf_handle handle) {
+    if (handle == NULL) {
+        return XDMA_EINVAL;
+    }
+    alloc_info_t *info = (alloc_info_t *)handle;
     int size;
-    size = ioctl(_fd, XDMA_RELEASE_KBUF, &handle);
+    xdma_status ret = XDMA_SUCCESS;
+    size = ioctl(_fd, XDMA_RELEASE_KBUF, &info->handle);
     if (size <= 0) {
         perror("could not release pinned buffer");
-        return XDMA_ERROR;
-    }
-
-    if (munmap(buffer, size)) {
+        ret = XDMA_ERROR;
+    } else if (munmap(info->ptr, size)) {
         perror("Failed to unmap pinned buffer");
-        return XDMA_ERROR;
+        ret = XDMA_ERROR;
     }
-    return XDMA_SUCCESS;
+    free(info);
+    return ret;
 }
 
-xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_xfer_mode mode, xdma_device dev, xdma_channel ch,
-        xdma_transfer_handle *transfer) {
-
+static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+        xdma_device dev, xdma_channel ch, bool block, xdma_transfer_handle *transfer)
+{
     struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)ch;
     struct xdma_dev *device = (struct xdma_dev*)dev;
     //prepare kernel mapped buffer & submit
@@ -280,7 +308,7 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
     //start input transfer host->dev
     struct xdma_transfer *trans;
     //May not be a good thing for the performance to allocate things for each transfer
-    if (mode == XDMA_SYNC) {
+    if (block) {
         //If we are waiting for the transfer to finish, we can allocate
         //the data structure in the stack
         trans = (struct xdma_transfer*)alloca(sizeof(struct xdma_transfer));
@@ -290,7 +318,7 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
     trans->chan = channel->chan;
     trans->completion = buf.completion;
     trans->cookie = buf.cookie;
-    trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
+    trans->wait = block;
     trans->sg_transfer = 0;
     if (ioctl(_fd, XDMA_START_TRANSFER, trans) < 0) {
         pthread_mutex_unlock(devMutex);
@@ -298,74 +326,58 @@ xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int o
         return XDMA_ERROR;
     }
     pthread_mutex_unlock(devMutex);
-    if (mode == XDMA_ASYNC) {
+    if (!block) {
         *transfer = (xdma_transfer_handle)trans;
     }
     return XDMA_SUCCESS;
 }
 
-
-xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode, xdma_device dev,
-        xdma_channel chan, xdma_transfer_handle *transfer) {
-    struct xdma_transfer *tx = (struct xdma_transfer *)transfer;
-    struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)chan;
-    struct xdma_dev *device = (struct xdma_dev*)dev;
-    struct xdma_buf_info buf;
-    buf.chan = channel->chan;
-    buf.completion =
-        (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
-    buf.cookie = 0;
-    buf.address = (unsigned long)buffer;
-    buf.buf_size = (u32) len;
-    buf.dir = channel->dir;
-
-    pthread_mutex_t * devMutex = &(_submitMutexes[device - _devices]);
-    pthread_mutex_lock(devMutex);
-    if (ioctl(_fd, XDMA_PREP_USR_BUF, &buf) < 0) {
-        pthread_mutex_unlock(devMutex);
-        perror("Error submitting userspace buffer");
-        return XDMA_ERROR;
-    }
-
-    //start transfer
-    //TODO: Refactor code in order to reuse the transfer start&wait between this and
-    //xdmaSubmitKbuffer
-    if (mode == XDMA_SYNC) {
-        tx = (struct xdma_transfer*)alloca(sizeof(struct xdma_transfer));
-    } else {
-        tx = (struct xdma_transfer*)malloc(sizeof(struct xdma_transfer));
-    }
-    tx->chan = channel->chan;
-    tx->completion = buf.completion;
-    tx->cookie = (u32) buf.cookie;
-    tx->wait = mode & XDMA_SYNC;
-    tx->sg_transfer = buf.sg_transfer;
-    if (ioctl(_fd, XDMA_START_TRANSFER, tx) < 0) {
-        pthread_mutex_unlock(devMutex);
-        perror("Error starting SG transfer");
-        if (mode == XDMA_ASYNC) {
-            free(tx);
-        }
-        return XDMA_ERROR;
-    }
-    pthread_mutex_unlock(devMutex);
-
-    if (mode == XDMA_ASYNC) {
-        *transfer = (xdma_transfer_handle)tx;
-    }
-    return XDMA_SUCCESS;
+xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+            xdma_device dev, xdma_channel channel)
+{
+    return _xdmaStream(buffer, len, offset, dev, channel, 0 /*block*/, NULL /*xdma_transfer_handle*/);
 }
 
-static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, xdma_xfer_mode mode) {
+xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
+        xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer)
+{
+    return _xdmaStream(buffer, len, offset, dev, channel, 1 /*block*/, transfer);
+}
+
+xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+        xdma_dir mode, xdma_device dev, xdma_channel channel)
+{
+    alloc_info_t *info = (alloc_info_t *)buffer;
+    xdma_status ret = XDMA_SUCCESS;
+    if (mode == XDMA_TO_DEVICE) {
+        memcpy(((unsigned char *)info->ptr) + offset, usr, len);
+    } else if (mode == XDMA_FROM_DEVICE) {
+        memcpy(usr, ((unsigned char *)info->ptr) + offset, len);
+    } else if (mode == XDMA_DEVICE_TO_DEVICE) {
+        ret = XDMA_ENOSYS;
+    } else {
+        ret = XDMA_EINVAL;
+    }
+    return ret;
+}
+
+xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+        xdma_dir mode, xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer)
+{
+    *transfer = (xdma_transfer_handle)NULL;
+    return xdmaMemcpy(usr, buffer, len, offset, mode, dev, channel);
+}
+
+static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, bool block) {
     struct xdma_transfer *trans = (struct xdma_transfer *)transfer;
     int status;
 
-    if (!trans) {
-        //Uninitialized/cleaned up transfer
-        return XDMA_ERROR;
+    if (trans == NULL) {
+        //Memcpy or uninitialized/cleaned up transfer
+        return XDMA_SUCCESS;
     }
 
-    trans->wait = mode & XDMA_SYNC; //XDMA_SYNC == 1
+    trans->wait = block;
     status = ioctl(_fd, XDMA_FINISH_TRANSFER, trans);
     if (status < 0) {
         perror("Transfer finish error\n");
@@ -377,25 +389,15 @@ static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, xdm
     }
 }
 
-xdma_status xdmaTestTransfer(xdma_transfer_handle transfer){
-    return _xdmaFinishTransfer(transfer, 0);
-}
-
-xdma_status xdmaWaitTransfer(xdma_transfer_handle transfer){
-    xdma_status status = _xdmaFinishTransfer(transfer, 1);
-    if (status == XDMA_PENDING) {
-        fprintf(stderr, "Warining: transfer %x timed out\n", (unsigned int)transfer);
-    }
-    return status;
-}
-
-xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer){
+static inline xdma_status _xdmaReleaseTransfer(xdma_transfer_handle *transfer){
     struct xdma_transfer *trans = (struct xdma_transfer *)*transfer;
     int status;
 
-    if (!trans) {
+    if (trans == NULL) {
+        //Memcpy or uninitialized/cleaned up transfer
         return XDMA_SUCCESS;
     }
+
     if (trans->sg_transfer) {
         //transfer is a SG one, some kernel resources should be released
         status = ioctl(_fd, XDMA_RELEASE_USR_BUF, (unsigned long)trans->sg_transfer);
@@ -412,6 +414,25 @@ xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer){
     return XDMA_SUCCESS;
 }
 
+xdma_status xdmaTestTransfer(xdma_transfer_handle *transfer){
+    xdma_status ret = _xdmaFinishTransfer(*transfer, 0 /*block*/);
+    if (ret == XDMA_SUCCESS || ret == XDMA_ERROR) {
+        _xdmaReleaseTransfer(transfer);
+    }
+    return ret;
+}
+
+xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer){
+    xdma_status ret = _xdmaFinishTransfer(*transfer, 1 /*block*/);
+    if (ret == XDMA_SUCCESS || ret == XDMA_PENDING || ret == XDMA_ERROR) {
+        if (ret == XDMA_PENDING) {
+            fprintf(stderr, "Warining: transfer %x timed out\n", (unsigned int)*transfer);
+        }
+        _xdmaReleaseTransfer(transfer);
+    }
+    return ret;
+}
+
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     devInfo->tx_chan = NULL;
     devInfo->tx_cmp = NULL;
@@ -425,13 +446,14 @@ static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress) {
+xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *dmaAddress) {
+    alloc_info_t *info = (alloc_info_t *)buffer;
     union {
-        xdma_buf_handle dmaBuffer;
+        unsigned long dmaBuffer;
         unsigned long dmaAddress;
     } kArg;
     int status;
-    kArg.dmaBuffer = buffer;
+    kArg.dmaBuffer = info->handle;
     status = ioctl(_fd, XDMA_GET_DMA_ADDRESS, &kArg);
     if (status) {
         perror("Error getting DMA address");

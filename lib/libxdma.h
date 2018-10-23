@@ -12,13 +12,6 @@ extern "C" {
 #include <stdint.h>
 #include <stdlib.h>
 
-	enum xdma_wait {
-		XDMA_WAIT_NONE = 0,
-		XDMA_WAIT_SRC = (1 << 0),
-		XDMA_WAIT_DST = (1 << 1),
-		XDMA_WAIT_BOTH = (1 << 1) | (1 << 0),
-	};
-
     //TODO: Proper error codes
     /**
      * xdma status
@@ -31,19 +24,15 @@ extern "C" {
         XDMA_ENOMEM,        ///< Operation failed due to an error allocating memory
         XDMA_EACCES,        ///< Operation failed because user does not have access
         XDMA_ENOENT,        ///< Operation failed because device does not exist
+        XDMA_ENOSYS,        ///< Function not implemented
     } xdma_status;
 
     /// Channel direcction
     typedef enum {
-        XDMA_TO_DEVICE = 0,     ///< From host main memory to device
-        XDMA_FROM_DEVICE = 1,   ///< From device to host main memory
+        XDMA_TO_DEVICE = 0,         ///< From host to device
+        XDMA_FROM_DEVICE = 1,       ///< From device to host
+        XDMA_DEVICE_TO_DEVICE = 2   ///< From device to device
     } xdma_dir;
-
-    /// Transfer mode for (non)blocking operation
-    typedef enum {
-        XDMA_ASYNC = 0,     ///< Asynchronous transfer (non blocking)
-        XDMA_SYNC = 1,      ///< Synchronous transfer (blocking)
-    } xdma_xfer_mode;
 
     typedef long unsigned int xdma_device;
     typedef long unsigned int xdma_channel;
@@ -87,50 +76,67 @@ extern "C" {
     xdma_status xdmaGetDeviceChannel(xdma_device device, xdma_dir direction, xdma_channel *channel);
 
     /*!
-     * Allocate a buffer in kernel space to be transferred to a xDMA device
+     * Allocate a buffer to be transferred to a xDMA device and accessible from host and device
      * \param[out] buffer   Pointer to the allocated buffer
-     * \param[out] handle   DMA buffer handle
+     * \param[out] handle   Buffer handle
      * \param[in] len       Buffer length in bytes
      */
-    xdma_status xdmaAllocateKernelBuffer(void **buffer, xdma_buf_handle *handle, size_t len);
+    xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len);
 
     /*!
-     * Free a pinned buffer allocated in kernel space and unmap the region from user space
-     * \param[in] buffer    Address of the bointer to bee freed
-     * \param[in] handle    Buffer handle to be freed
+     * Allocate a buffer to be transferred to a xDMA device (not accessible from the host)
+     * \param[out] handle   Buffer handle
+     * \param[in] len       Buffer length in bytes
      */
-    xdma_status xdmaFreeKernelBuffer(void *buffer, xdma_buf_handle handle);
+    xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len);
 
     /*!
-     * Submit a pinned buffer allocated in kernel space
+     * Free a buffer
+     * \param[in] handle    Buffer handle to be freed (may be from any xdmaAllocate)
+     */
+    xdma_status xdmaFree(xdma_buf_handle handle);
+
+    /*!
+     * Submit a buffer in a device channel
      * \param[in] buffer    Buffer handle
      * \param[in] len       Buffer length
      * \param[in] offset    Transfer offset
-     * \param[in] mode      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
-     *                      for sync (blocking) or async (non blocking) transfers
      * \param[in] dev       DMA device to transfer data
      * \param[in] channel   DMA channel to operate
      * \param[out] transfer Pointer to the variable that will hold the transfer handle.
-     *      If the transfer is blocking (XDMA_SUCCESS), this pointer should be NULL
-     * \return              XDMA_SUCCESS on success, XDMA_ERROR otherwise
+     *                      (Only available in async version)
+     * NOTE: An async operation must be synchronized at some point using xdmaTestTransfer
+     *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
+     *       hang
      */
-    xdma_status xdmaSubmitKBuffer(xdma_buf_handle buffer, size_t len, unsigned int offset,
-            xdma_xfer_mode mode, xdma_device dev, xdma_channel channel,
-            xdma_transfer_handle *transfer);
+    xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+            xdma_device dev, xdma_channel channel);
+    xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
+            xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
 
     /*!
-     * Submit a user allocated buffer (i.e. using malloc) to be transferred through DMA
-     * \param[in] buffer    Buffer to be transferred
-     * \param[in] len       Buffer length
-     * \param[in] mode      Transfer mode. Either XDMA_SYNC or XDMA_ASYNC
-     *                      for sync (blocking) or async (non blocking) transfers
-     * \param[in] dev       DMA device to transfer data
-     * \param[in] channel   DMA channel to operate
+     * Copy to/from a buffer from/to userspace memory
+     *
+     * \param[in] usr       Pointer to userspace memory
+     * \param[in] buffer    Buffer handle
+     * \param[in] len       Length of the data movement (in bytes)
+     * \param[in] offset    Offset to apply in the buffer
+     * \param[in] mode      Directionality of the data movement
+     *                       - XDMA_TO_DEVICE:   buffer[offset .. offset+len] = usr[0 .. len]
+     *                       - XDMA_FROM_DEVICE: usr[0 .. len] = buffer[offset .. offset+len]
+     * \param[in] dev       Device to transfer data
+     * \param[in] channel   Channel to operate
      * \param[out] transfer Pointer to the variable that will hold the transfer handle.
-     *      If the transfer is blocking (XDMA_SUCCESS), this pointer should be NULL
+     *                      (Only available in async version)
+     * NOTE: An async operation must be synchronized at some point using xdmaTestTransfer
+     *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
+     *       hang
      */
-    xdma_status xdmaSubmitBuffer(void *buffer, size_t len, xdma_xfer_mode mode,
-            xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
+    xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+            xdma_dir mode, xdma_device dev, xdma_channel channel);
+    xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+            xdma_dir mode, xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
+
     /*!
      * Test the status of a transfer (finished, pending or error)
      * \param[in] transfer  DMA transfer handle to be tested
@@ -139,26 +145,25 @@ extern "C" {
      *                      XDMA_PENDING if the transfer has not yet finished
      *                      XDMA_ERROR if an error has occurred
      */
-    xdma_status xdmaTestTransfer(xdma_transfer_handle transfer);
+    xdma_status xdmaTestTransfer(xdma_transfer_handle *transfer);
 
     /*!
      * Wait for a transfer to finish
-     * \param[in] transfer  DMA transfer handle
+     * \param[in] transfer  Transfer handle
      * \return              XDMA_SUCCESS if the transfer has finished successfully
      *                      XDMA_PENDING if the transfer has already not finished
      *                      XDMA_ERROR if an error has occurred
      */
-    xdma_status xdmaWaitTransfer(xdma_transfer_handle transfer);
+    xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer);
 
     /*!
-     * Release the data structures associated with a DMA transfer
-     * \param[in,out] transfer  DMA transfer handle to be released
-     * \return                  XDMA_SUCCESS if transfer successfully released
-     *                          XDMA_ERROR otherwise
+     * Get the internal device address to reference a buffer
+     * \param[in] buffer      Buffer handle
+     * \param[out] devAddress Address of buffer in the device
+     * \return                XDMA_SUCCESS if the devAddress has been successfully set,
+     *                        XDMA_ERROR otherwise
      */
-    xdma_status xdmaReleaseTransfer(xdma_transfer_handle *transfer);
-
-    xdma_status xdmaGetDMAAddress(xdma_buf_handle buffer, unsigned long *dmaAddress);
+    xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, uint64_t *devAddress);
 
     /*!
      * Initialize the support for HW instrumentation.
@@ -177,11 +182,29 @@ extern "C" {
      */
     xdma_status xdmaFiniHWInstrumentation();
 
+    /*!
+     * Get the internal device time (instrumentation timer)
+     * \param[out] time Current timestamp in the device
+     * \return          XDMA_SUCCESS if the time has been successfully set,
+     *                  XDMA_ERROR otherwise
+     */
     xdma_status xdmaGetDeviceTime(uint64_t *time);
+
+    /*!
+     * Check if the instrumentation is initialized and available
+     * \return 1 if the instrumentation support has been sucessfully initialized,
+     *         0 otherwise
+     */
     int xdmaInstrumentationEnabled();
+
+    /*!
+     * Get the internal device address of the instrumentation timer
+     * \return Address of the instrumentation times in the device,
+     *         0 if any error happened
+     */
     uint64_t xdmaGetInstrumentationTimerAddr();
 
 #ifdef __cplusplus
 }
 #endif
-#endif				/* LIBXDMA_H */
+#endif /* LIBXDMA_H */
