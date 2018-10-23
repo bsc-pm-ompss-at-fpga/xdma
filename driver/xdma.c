@@ -13,7 +13,7 @@
 #include <linux/device.h>
 #include <linux/cdev.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/dma-mapping.h>
 
 #define LINUX_KERNEL_VERSION_4XX (LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0) \
