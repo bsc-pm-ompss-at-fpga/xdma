@@ -345,7 +345,7 @@ xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int off
 }
 
 xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_dir mode, xdma_device dev, xdma_channel channel)
+        xdma_dir mode)
 {
     alloc_info_t *info = (alloc_info_t *)buffer;
     xdma_status ret = XDMA_SUCCESS;
@@ -362,10 +362,10 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
 }
 
 xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_dir mode, xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer)
+        xdma_dir mode, xdma_transfer_handle *transfer)
 {
     *transfer = (xdma_transfer_handle)NULL;
-    return xdmaMemcpy(usr, buffer, len, offset, mode, dev, channel);
+    return xdmaMemcpy(usr, buffer, len, offset, mode);
 }
 
 static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, bool block) {

@@ -124,8 +124,6 @@ extern "C" {
      * \param[in] mode      Directionality of the data movement
      *                       - XDMA_TO_DEVICE:   buffer[offset .. offset+len] = usr[0 .. len]
      *                       - XDMA_FROM_DEVICE: usr[0 .. len] = buffer[offset .. offset+len]
-     * \param[in] dev       Device to transfer data
-     * \param[in] channel   Channel to operate
      * \param[out] transfer Pointer to the variable that will hold the transfer handle.
      *                      (Only available in async version)
      * NOTE: An async operation must be synchronized at some point using xdmaTestTransfer
@@ -133,9 +131,9 @@ extern "C" {
      *       hang
      */
     xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-            xdma_dir mode, xdma_device dev, xdma_channel channel);
+            xdma_dir mode);
     xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-            xdma_dir mode, xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
+            xdma_dir mode, xdma_transfer_handle *transfer);
 
     /*!
      * Test the status of a transfer (finished, pending or error)
