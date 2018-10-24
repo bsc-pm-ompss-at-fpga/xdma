@@ -446,7 +446,7 @@ static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *dmaAddress) {
+xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, uint64_t *dmaAddress) {
     alloc_info_t *info = (alloc_info_t *)buffer;
     union {
         unsigned long dmaBuffer;
