@@ -161,7 +161,7 @@ extern "C" {
      * \return                XDMA_SUCCESS if the devAddress has been successfully set,
      *                        XDMA_ERROR otherwise
      */
-    xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, uint64_t *devAddress);
+    xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *devAddress);
 
     /*!
      * Initialize the support for HW instrumentation.
