@@ -25,6 +25,7 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #if LINUX_KERNEL_VERSION_4XX
 #  include <linux/dma/xilinx_dma.h>
 #elif LINUX_KERNEL_VERSION_3XX
@@ -1011,7 +1012,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	xdma_node = pdev->dev.of_node;
 	trace_bram = of_parse_phandle(xdma_node, TRACE_REF_NAME, 0);
 
-
+	of_dma_configure(dma_dev, xdma_node);
 
 	if (!trace_bram) {
 		printk(KERN_INFO "<%s> No acc debug hardware found", MODULE_NAME);
