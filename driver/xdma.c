@@ -791,7 +791,8 @@ ssize_t xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *of
 
 	//timestamp = ((u64)readl(instr_io_addr)) | ((u64)readl(instr_io_addr + sizeof(u32))) << 32;
 	PRINT_DBG(KERN_INFO "XDMA_GET_TIME hi: %llu lo: %llu timestamp: %llu\n", hi, lo, timestamp);
-	copy_to_user(buf, &timestamp, sizeof(u64));
+	if (copy_to_user(buf, &timestamp, sizeof(u64)))
+		return -EFAULT;
 
 	return sizeof(u64);
 }
@@ -799,7 +800,7 @@ ssize_t xdma_instr_read(struct file *f, char __user *buf, size_t len, loff_t *of
 static long xdma_instr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 
-	printk("instrumentation ioctl: %lu\n", cmd);
+	printk("instrumentation ioctl: %u\n", cmd);
 	switch (cmd) {
 	case XDMA_INSTR_GET_ADDR:
 		printk("<xdma-instr> get inst addr %lu\n", instr_phy_addr);
