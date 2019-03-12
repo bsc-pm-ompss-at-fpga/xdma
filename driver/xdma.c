@@ -993,7 +993,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 		return -1;
 	}
 
-	dma_dev = device_create(cl, NULL, dev_num, NULL, MODULE_NAME);
+	dma_dev = device_create(cl, &xdma_pdev->dev, dev_num, NULL, MODULE_NAME);
 	if (dma_dev == NULL) {
 		class_destroy(cl);
 		unregister_chrdev_region(dev_num, 1);
