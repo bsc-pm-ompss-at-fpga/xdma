@@ -208,10 +208,14 @@ unsigned long xdma_get_dma_address(struct xdma_kern_buf *kbuf)
 static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0))
 #if TARGET_64_BITS
 	struct device *dev = dma_dev;
-#else
+#else //TARGET_64_BITS
 	static struct device *dev = NULL;
+#endif
+#else //(LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	struct device *dev = &xdma_pdev->dev;
 #endif
 
 	list_del(&buff_desc->desc_list);
