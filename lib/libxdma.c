@@ -1,17 +1,11 @@
 #include "libxdma.h"
 
-#define FILEPATH "/dev/xdma"
-#define INSTR_FILEPATH  "/dev/xdma_instr"
+#define XDMA_FILEPATH   "/dev/ompss_fpga/xdma"
+#define INSTR_FILEPATH  "/dev/ompss_fpga/hw_instrumentation"
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
-// the below defines are a hack that enables the use of kernel data types
-// without having to included standard kernel headers
-#define u32 uint32_t
-// dma_cookie_t is defined in the kernel header <linux/dmaengine.h>
-#define dma_cookie_t int32_t
-#include "xdma.h"
-#include "libxdma.h"
+#include "ompss_fpga.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,8 +20,9 @@
 #include <stddef.h>
 #include <errno.h>
 
-#define BUS_IN_BYTES 4
-#define BUS_BURST 16
+#define BUS_IN_BYTES        4
+#define BUS_BURST           16
+#define MAX_DEVICES         5
 //Assume there only are 1 in + 1 out channel per device
 #define CHANNELS_PER_DEVICE 2
 #define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
@@ -68,7 +63,7 @@ xdma_status xdmaOpen() {
     _kUsedSpace = 0;
     _instr_fd = 0;
     //TODO: check if library has been initialized
-    _fd = open(FILEPATH, O_RDWR | O_TRUNC);
+    _fd = open(XDMA_FILEPATH, O_RDWR | O_TRUNC);
     if (_fd == -1) {
         //perror("Error opening file for writing");
         xdma_status ret = XDMA_ERROR;
@@ -516,7 +511,7 @@ uint64_t xdmaGetInstrumentationTimerAddr() {
 
     int status;
     uint64_t addr;
-    status = ioctl(_instr_fd, XDMA_INSTR_GET_ADDR, &addr);
+    status = ioctl(_instr_fd, HWINSTR_GET_ADDR, &addr);
     if (status) {
         perror("Could not get instrumentation address");
         return 0;
@@ -524,7 +519,7 @@ uint64_t xdmaGetInstrumentationTimerAddr() {
     return addr;
 }
 
-#undef FILEPATH
+#undef XDMA_FILEPATH
 #undef INSTR_FILEPATH
 #undef MAP_SIZE
 #undef FILESIZE

@@ -4,55 +4,14 @@ This repository contains a set of tools to stream in/out data to/from Xilinx FPG
 They are expected to work, at least, in Linux kernel 3.19 and 4.6; without matter if they are 32/64 bits.
 The main contents are:
  - `apps` contains different tests/benchmarks to check that the system works.
- - `driver` contains the Linux driver that implements the functionalities.
+ - `driver` [deprecated] contains the Linux driver that implements the functionalities.
  - `lib` contains the user level library interfacing the main functionalities.
 
 ### Build the driver
 
-To build the driver, you need the kernel headers or sources of your revision.
-In a Debian based system, you can install the kernel header files for the currently running kernel by running the following in a terminal:
-```
-sudo apt-get install linux-headers-$(uname -r)
-```
+> **NOTE: The xdma driver is deprecated and the functionalities have been implemented in the new [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module).**
 
-Once you have the kernel headers available, you can proceed with:
-
-  1. Clone the repository or download the latest stable version.
-    ```
-    git clone https://pm.bsc.es/gitlab/ompss-at-fpga/xdma.git
-    cd xdma
-    ```
-
-  2. Enter the driver directory.
-    ```
-    cd driver
-    ```
-
-  3. (Optional) If you are cross-compiling, set `KDIR`, `CROSS_COMPILE` and `ARCH` environment variables.
-    * `KDIR` should point to the folder containing the kernel headers.
-    Otherwise, they are expected to be in `/lib/modules/$(shell uname -r)/build` folder.
-    ```
-    export KDIR=/home/my_user/kernel-headers
-    ```
-    * `ARCH` should be set to the target architecture you're compiling to.
-    ```
-    export ARCH=arm
-    ```
-    * `CROSS_COMPILE` must contain the build triplet for your target system.
-    ```
-    export CROSS_COMPILE=arm-linux-gnueabihf-
-    ```
-    
-  4. Build the kernel module.
-    ```
-    make
-    ```
-    
-  5. (Optional) Install the kernel module and udev rules.
-    ```
-    make install
-    ```
-
+The build instructions for the xdma linux diver can be found in `driver/README.md` file.
 
 ### Build the library
   1. Clone the repository or download the latest stable version.
@@ -60,22 +19,27 @@ Once you have the kernel headers available, you can proceed with:
     git clone https://pm.bsc.es/gitlab/ompss-at-fpga/xdma.git
     cd xdma
     ```
-    
+
   2. Enter the library directory.
     ```
     cd lib
     ```
-    
-  3. (Optional) If you are cross-compiling, set the `CROSS_COMPILE` environment variable. For example:
+
+  3. Set environment variables.
+    * [Optional] `CROSS_COMPILE`. If you are cross-compiling, set this variable to the right value. For example:
     ```
     export CROSS_COMPILE=arm-linux-gnueabihf-
     ```
-     
+    * `KERNEL_MODULE_DIR`. Path where to find the `ompss_fpga.h` header file of [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module). For example:
+    ```
+    export KERNEL_MODULE_DIR=/path/to/ompss-at-fpga/kernel/module/src
+    ```
+
   4. Build.
     ```
     make
     ```
-    
+
   5. (Optional) Install the files in `PREFIX` folder. For example:
     ```
     make PREFIX=/opt/install-arm/libxdma install
