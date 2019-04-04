@@ -132,10 +132,14 @@ static int xdma_mmap(struct file *filp, struct vm_area_struct *vma)
 	unsigned long requested_size;
 	dma_addr_t dma_handle;
 	void *buffer_addr;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0))
 #if TARGET_64_BITS
 	struct device *dev = dma_dev;
-#else
+#else //TARGET_64_BITS
 	static struct device *dev = NULL;
+#endif
+#else //(LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	struct device *dev = &xdma_pdev->dev;
 #endif
 
 
@@ -204,10 +208,14 @@ unsigned long xdma_get_dma_address(struct xdma_kern_buf *kbuf)
 static size_t xdma_release_kernel_buffer(struct xdma_kern_buf *buff_desc)
 {
 	size_t size = buff_desc->size;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0))
 #if TARGET_64_BITS
 	struct device *dev = dma_dev;
-#else
+#else //TARGET_64_BITS
 	static struct device *dev = NULL;
+#endif
+#else //(LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+	struct device *dev = &xdma_pdev->dev;
 #endif
 
 	list_del(&buff_desc->desc_list);
@@ -993,7 +1001,7 @@ static int xdma_driver_probe(struct platform_device *pdev)
 		return -1;
 	}
 
-	dma_dev = device_create(cl, NULL, dev_num, NULL, MODULE_NAME);
+	dma_dev = device_create(cl, &xdma_pdev->dev, dev_num, NULL, MODULE_NAME);
 	if (dma_dev == NULL) {
 		class_destroy(cl);
 		unregister_chrdev_region(dev_num, 1);
@@ -1013,7 +1021,13 @@ static int xdma_driver_probe(struct platform_device *pdev)
 	xdma_node = pdev->dev.of_node;
 	trace_bram = of_parse_phandle(xdma_node, TRACE_REF_NAME, 0);
 
-	of_dma_configure(dma_dev, xdma_node);
+	/*No dma configure is needed as we use the platform device for
+	  memory allocations
+	  If of_dma_configure is needed, a proper bus needs to be issigned in
+	  newer (>=4.14) kernel versions
+	  dma_dev->bus = xdma_pdev->dev.bus;
+	  of_dma_configure(dma_dev, xdma_node);
+	*/
 
 	if (!trace_bram) {
 		printk(KERN_INFO "<%s> No acc debug hardware found", MODULE_NAME);
