@@ -2,6 +2,7 @@
 
 #define XDMA_FILEPATH   "/dev/ompss_fpga/xdma"
 #define INSTR_FILEPATH  "/dev/ompss_fpga/hw_instrumentation"
+#define MEM_FILEPATH    "/dev/ompss_fpga/xdma_mem"
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
@@ -28,7 +29,8 @@
 #define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
 
 static int _fd;
-static int _instr_fd;
+static int _instr_fd = 0;
+static int _mem_fd = 0;
 
 static int _numDevices;
 static struct xdma_dev _devices[MAX_DEVICES];
@@ -78,8 +80,6 @@ xdma_status xdmaOpen() {
         return ret;
     }
 
-    //Initialize mutex
-    pthread_mutex_init(&_allocateMutex, NULL);
 
     //try to initialize instrumentation support
     // NOTE: Initialization disabled as instrumentation may be not-wanted
@@ -115,9 +115,6 @@ xdma_status xdmaClose() {
         }
         free(_submitMutexes);
     }
-
-    //Mutex finalization
-    pthread_mutex_destroy(&_allocateMutex);
 
     if (close(_fd) == -1) {
         perror("Error closing device file");
@@ -221,7 +218,7 @@ xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len)
     unsigned long ret;
     unsigned int status;
     pthread_mutex_lock(&_allocateMutex);
-    *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _fd, 0);
+    *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _mem_fd, 0);
     if (*buffer == MAP_FAILED) {
         pthread_mutex_unlock(&_allocateMutex);
         perror("Error allocating kernel buffer: mmap failed");
@@ -229,7 +226,7 @@ xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len)
         return XDMA_ERROR;
     }
     //get the handle for the allocated buffer
-    status = ioctl(_fd, XDMA_GET_LAST_KBUF, &ret);
+    status = ioctl(_mem_fd, XDMAMEM_GET_LAST_KBUF, &ret);
     pthread_mutex_unlock(&_allocateMutex);
     if (status) {
         perror("Error allocating pinned memory");
@@ -262,7 +259,7 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
     alloc_info_t *info = (alloc_info_t *)handle;
     int size;
     xdma_status ret = XDMA_SUCCESS;
-    size = ioctl(_fd, XDMA_RELEASE_KBUF, &info->handle);
+    size = ioctl(_mem_fd, XDMAMEM_RELEASE_KBUF, &info->handle);
     if (size <= 0) {
         perror("could not release pinned buffer");
         ret = XDMA_ERROR;
@@ -449,7 +446,7 @@ xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *address)
     } kArg;
     int status;
     kArg.dmaBuffer = info->handle;
-    status = ioctl(_fd, XDMA_GET_DMA_ADDRESS, &kArg);
+    status = ioctl(_mem_fd, XDMAMEM_GET_DMA_ADDRESS, &kArg);
     if (status) {
         perror("Error getting DMA address");
         return XDMA_ERROR;
@@ -484,6 +481,36 @@ xdma_status xdmaFiniHWInstrumentation() {
     if (_instr_fd > 0) {
         close(_instr_fd);
     }
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaInitMem() {
+    if (_mem_fd > 0) return XDMA_SUCCESS;
+    _mem_fd = open(MEM_FILEPATH, O_RDWR);
+    if (_mem_fd == -1) {
+        xdma_status ret = XDMA_ERROR;
+        switch (errno) {
+            case EACCES: //User cannot access instrumentation device
+                ret = XDMA_EACCES;
+                break;
+            case ENOENT: //Instrumentation not available
+                ret = XDMA_ENOENT;
+                break;
+        }
+        return ret;
+    }
+    //Initialize mutex
+    pthread_mutex_init(&_allocateMutex, NULL);
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaFiniMem() {
+    if (_mem_fd > 0) {
+        close(_instr_fd);
+    }
+    //Mutex finalization
+    pthread_mutex_destroy(&_allocateMutex);
+
     return XDMA_SUCCESS;
 }
 

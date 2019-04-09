@@ -202,6 +202,9 @@ extern "C" {
      */
     uint64_t xdmaGetInstrumentationTimerAddr();
 
+    xdma_status xdmaInitMem();
+    xdma_status xdmaFiniMem();
+
 #ifdef __cplusplus
 }
 #endif
