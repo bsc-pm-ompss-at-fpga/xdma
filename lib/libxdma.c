@@ -52,6 +52,7 @@ typedef struct {
     alloc_type_t type;      ///< Type of allocation
     unsigned long handle;   ///< Device driver handle
     void * ptr;             ///< Map pointer in userspace
+    unsigned long devAddr;  ///< Buffer device address
 } alloc_info_t;
 
 xdma_status xdmaOpen() {
@@ -213,9 +214,26 @@ static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction) {
     return XDMA_SUCCESS;
 }
 
+xdma_status _getDeviceAddress(unsigned long dmaBuffer, unsigned long *address) {
+    union {
+        unsigned long dmaBuffer;
+        unsigned long dmaAddress;
+    } kArg;
+    int status;
+    kArg.dmaBuffer = dmaBuffer;
+    status = ioctl(_mem_fd, XDMAMEM_GET_DMA_ADDRESS, &kArg);
+    if (status) {
+        perror("Error getting DMA address");
+        return XDMA_ERROR;
+    } else {
+        *address = kArg.dmaAddress;
+        return XDMA_SUCCESS;
+    }
+}
+
 xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len) {
     //TODO: Check that mmap + ioctl are performet atomically
-    unsigned long ret;
+    unsigned long ret, devAddress;
     unsigned int status;
     pthread_mutex_lock(&_allocateMutex);
     *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _mem_fd, 0);
@@ -233,10 +251,14 @@ xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len)
         munmap(buffer, len);
         return XDMA_ERROR;
     }
+
+    status = _getDeviceAddress(ret, &devAddress);
+
     alloc_info_t *info = (alloc_info_t *)malloc(sizeof(alloc_info_t));
     info->type = ALLOC_HOST;
     info->handle = ret;
     info->ptr = *buffer;
+    info->devAddr = devAddress;
     *handle = (xdma_buf_handle)info;
     return XDMA_SUCCESS;
 }
@@ -276,6 +298,7 @@ static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsign
 {
     struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)ch;
     struct xdma_dev *device = (struct xdma_dev*)dev;
+    alloc_info_t *bInfo = (alloc_info_t*)buffer;
     //prepare kernel mapped buffer & submit
     struct xdma_buf_info buf;
     buf.chan = channel->chan;
@@ -284,7 +307,7 @@ static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsign
         (channel->dir == XDMA_DEV_TO_MEM) ? device->rx_cmp : device->tx_cmp;
     buf.cookie = (dma_cookie_t)0;
     //Use address to store the buffer descriptor handle
-    buf.address = (unsigned long)buffer;
+    buf.address = (unsigned long)bInfo->devAddr;
     buf.buf_offset = offset;
     buf.buf_size = len;
     buf.dir = channel->dir;
@@ -438,22 +461,11 @@ static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo) {
     return XDMA_SUCCESS;
 }
 
+
 xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *address) {
     alloc_info_t *info = (alloc_info_t *)buffer;
-    union {
-        unsigned long dmaBuffer;
-        unsigned long dmaAddress;
-    } kArg;
-    int status;
-    kArg.dmaBuffer = info->handle;
-    status = ioctl(_mem_fd, XDMAMEM_GET_DMA_ADDRESS, &kArg);
-    if (status) {
-        perror("Error getting DMA address");
-        return XDMA_ERROR;
-    } else {
-        *address = kArg.dmaAddress;
-        return XDMA_SUCCESS;
-    }
+    *address = info->devAddr;
+    return XDMA_SUCCESS;
 }
 
 xdma_status xdmaInitHWInstrumentation() {
