@@ -202,6 +202,24 @@ extern "C" {
      */
     uint64_t xdmaGetInstrumentationTimerAddr();
 
+    /*!
+     * Initialize DMA memory subsystem
+     * Any call to memory related functions such as xdmaAllocate
+     * prior to memory initialization will fail.
+     * \return  XDMA_SUCCESS    if memory subsystem was successfully initialized
+     *          XDMA_EACCES     if user does not have permission to access memory node
+     *          XDMA_ENOENT     if memory node does not exist
+     *          XDMA_ERROR      in case of any other error
+     */
+    xdma_status xdmaInitMem();
+
+    /*!
+     * Deinitialize the DMA memory subsystem
+     * \return  XDMA_SUCCESS    on success
+     *          XDMA_ERROR      otherwise
+     */
+    xdma_status xdmaFiniMem();
+
 #ifdef __cplusplus
 }
 #endif
