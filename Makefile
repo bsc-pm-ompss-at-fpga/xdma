@@ -7,8 +7,8 @@ INCLUDES := -I. -I$(KERNEL_MODULE_DIR)
 all : libxdma.so libxdma-static.a
 
 
-libxdma.o : libxdma.c libxdma.h
-	$(CC) $(CFLAGS) $(INCLUDES) -fpic libxdma.c
+libxdma.o : src/libxdma.c src/libxdma.h
+	$(CC) $(CFLAGS) $(INCLUDES) -fpic src/libxdma.c
 
 
 libxdma.so : libxdma.o
@@ -21,7 +21,7 @@ doc:
 	doxygen
 
 .PHONY: libxdma_version.h
-libxdma_version.h: libxdma_version_template.h
+libxdma_version.h: src/libxdma_version_template.h
 	@head -n 6 $^ >$@
 ifeq (x$(shell git rev-parse --is-bare-repository 2>/dev/null), xfalse)
 	@echo "/* Build commit" >>$@
@@ -39,11 +39,11 @@ else
 endif
 	@tail -n 2 $^ >>$@
 
-install: libxdma.so libxdma-static.a libxdma.h libxdma_version.h
+install: libxdma.so libxdma-static.a src/libxdma.h libxdma_version.h
 	mkdir -p $(PREFIX)/lib
 	cp libxdma.so libxdma-static.a $(PREFIX)/lib/
 	mkdir -p $(PREFIX)/include
-	cp libxdma.h libxdma_version.h $(PREFIX)/include/
+	cp src/libxdma.h libxdma_version.h $(PREFIX)/include/
 
 .PHONY : clean
 clean :
