@@ -9,7 +9,7 @@ The main contents are:
 
 ### Build the driver
 
-> **NOTE: The xdma driver is deprecated and the functionalities have been implemented in the new [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module).**
+> **NOTE: The xdma driver has been deleted and the functionalities have been implemented in the new [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module).**
 
 The build instructions for the xdma linux diver can be found in `driver/README.md` file.
 
@@ -20,12 +20,7 @@ The build instructions for the xdma linux diver can be found in `driver/README.m
     cd xdma
     ```
 
-  2. Enter the library directory.
-    ```
-    cd lib
-    ```
-
-  3. Set environment variables.
+  2. Set environment variables.
     * [Optional] `CROSS_COMPILE`. If you are cross-compiling, set this variable to the right value. For example:
     ```
     export CROSS_COMPILE=arm-linux-gnueabihf-
@@ -35,12 +30,12 @@ The build instructions for the xdma linux diver can be found in `driver/README.m
     export KERNEL_MODULE_DIR=/path/to/ompss-at-fpga/kernel/module/src
     ```
 
-  4. Build.
+  3. Build.
     ```
     make
     ```
 
-  5. (Optional) Install the files in `PREFIX` folder. For example:
+  4. (Optional) Install the files in `PREFIX` folder. For example:
     ```
     make PREFIX=/opt/install-arm/libxdma install
     ```
