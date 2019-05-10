@@ -1,41 +1,23 @@
 # XDMA
 
-This repository contains a set of tools to stream in/out data to/from Xilinx FPGAs.
+This repository contains a library to stream in/out data to/from FPGAs.
+Moreover, it provides an interface to allocate memory for such data transfers.
 They are expected to work, at least, in Linux kernel 3.19 and 4.6; without matter if they are 32/64 bits.
-The main contents are:
- - `apps` contains different tests/benchmarks to check that the system works.
- - `driver` [deprecated] contains the Linux driver that implements the functionalities.
- - `lib` contains the user level library interfacing the main functionalities.
-
-### Build the driver
 
 > **NOTE: The xdma driver has been deleted and the functionalities have been implemented in the new [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module).**
 
-The build instructions for the xdma linux diver can be found in `driver/README.md` file.
-
 ### Build the library
-  1. Clone the repository or download the latest stable version.
-    ```
-    git clone https://pm.bsc.es/gitlab/ompss-at-fpga/xdma.git
-    cd xdma
-    ```
 
-  2. Set environment variables.
-    * [Optional] `CROSS_COMPILE`. If you are cross-compiling, set this variable to the right value. For example:
-    ```
-    export CROSS_COMPILE=arm-linux-gnueabihf-
-    ```
-    * `KERNEL_MODULE_DIR`. Path where to find the `ompss_fpga.h` header file of [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module). For example:
-    ```
-    export KERNEL_MODULE_DIR=/path/to/ompss-at-fpga/kernel/module/src
-    ```
+The `src` directory contains a folder for each supported platform.
+The Makefile inside each platform directory provides the basic targets to build and install the library.
+See the README file inside each directory for specific options.
 
-  3. Build.
-    ```
-    make
-    ```
+### Build the documentation
 
-  4. (Optional) Install the files in `PREFIX` folder. For example:
-    ```
-    make PREFIX=/opt/install-arm/libxdma install
-    ```
+A minimal documentation is provided using the `doxygen` tool.
+It can be generated with the following commands:
+
+```
+cd src
+make doc
+```

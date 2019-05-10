@@ -1,4 +1,4 @@
-#include "libxdma.h"
+#include "../libxdma.h"
 
 #define XDMA_FILEPATH   "/dev/ompss_fpga/xdma"
 #define INSTR_FILEPATH  "/dev/ompss_fpga/hw_instrumentation"
