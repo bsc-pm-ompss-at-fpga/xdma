@@ -350,13 +350,13 @@ static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsign
 xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
             xdma_device dev, xdma_channel channel)
 {
-    return _xdmaStream(buffer, len, offset, dev, channel, 0 /*block*/, NULL /*xdma_transfer_handle*/);
+    return _xdmaStream(buffer, len, offset, dev, channel, 1 /*block*/, NULL /*xdma_transfer_handle*/);
 }
 
 xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
         xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer)
 {
-    return _xdmaStream(buffer, len, offset, dev, channel, 1 /*block*/, transfer);
+    return _xdmaStream(buffer, len, offset, dev, channel, 0 /*block*/, transfer);
 }
 
 xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
