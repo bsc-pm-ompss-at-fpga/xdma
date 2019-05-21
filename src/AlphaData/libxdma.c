@@ -80,40 +80,15 @@ static transfer_info_t _transfers[MAX_TRANSFERS];
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 
-xdma_status xdmaOpen() {
-    int open_cnt;
-    ADMXRC3_STATUS status;
-    xdma_status xstatus;
-
-    // Handle multiple opens
-    open_cnt = __sync_fetch_and_add(&_open_cnt, 1);
-    if (open_cnt > 0) return XDMA_SUCCESS;
-
+xdma_status xdmaInitMem() {
     //Previous addresses are reserved for the direct slave and accessible through a
     //mapped pointer returned by ADMXRC3_MapWindow
     _lastAddress = 0x10000;
-    _numDevices = -1;
-
-    //try to initialize instrumentation support
-    // NOTE: Initialization disabled as instrumentation may be not-wanted
-    //xdmaInitHWInstrumentation();
 
     pthread_mutex_init(&_allocateMutex, NULL);
     pthread_mutex_init(&_transferMutex, NULL);
-    pthread_mutex_init(&_streamReadMutex, NULL);
-    pthread_mutex_init(&_streamWriteMutex, NULL);
 
-    //initialize devices
-    int numDevices;
-    xstatus = xdmaGetNumDevices(&numDevices);
-    if (xstatus != XDMA_SUCCESS) {
-        return XDMA_ERROR;
-    }
-    xdma_device *devices;
-    devices = (xdma_device*)alloca(numDevices*sizeof(xdma_device));
-    xdmaGetDevices(numDevices, devices, NULL);
-
-    status = ADMXRC3_Open(0, &_hGlobalDevice);
+    ADMXRC3_STATUS status = ADMXRC3_Open(0, &_hGlobalDevice);
     if (status != ADMXRC3_SUCCESS) {
         perror("Error opening global device");
         return XDMA_ERROR;
@@ -143,13 +118,80 @@ xdma_status xdmaOpen() {
         info->used = false;
     }
 
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaOpen() {
+    int open_cnt;
+    ADMXRC3_STATUS status;
+    xdma_status xstatus;
+
+    // Handle multiple opens
+    open_cnt = __sync_fetch_and_add(&_open_cnt, 1);
+    if (open_cnt > 0) return XDMA_SUCCESS;
+
+    xstatus = xdmaInitMem();
+    if (xstatus != XDMA_SUCCESS)
+        return xstatus;
+
+    _numDevices = -1;
+
+    pthread_mutex_init(&_streamReadMutex, NULL);
+    pthread_mutex_init(&_streamWriteMutex, NULL);
+
+    //initialize devices
+    int numDevices;
+    xstatus = xdmaGetNumDevices(&numDevices);
+    if (xstatus != XDMA_SUCCESS) {
+        return XDMA_ERROR;
+    }
+    xdma_device *devices;
+    devices = (xdma_device*)alloca(numDevices*sizeof(xdma_device));
+    xdmaGetDevices(numDevices, devices, NULL);
+
     ADMXRC3_InitializeTicket(&_streamReadHeaderTicket);
     _validTicket = 0;
-    /*status = ADMXRC3_Lock(_hGlobalDevice, _globalHeader, HEADER_SIZE, &_hGLobalHeader);
+    status = ADMXRC3_Lock(_hGlobalDevice, _globalHeader, HEADER_SIZE, &_hGLobalHeader);
     if (status != ADMXRC3_SUCCESS) {
         perror("Error locking global header buffer");
         return XDMA_ERROR;
-    }*/
+    }
+
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaFiniMem() {
+    ADMXRC3_STATUS status;
+
+    for (int i = 0; i < MAX_TRANSFERS; ++i) {
+        transfer_info_t* info = &_transfers[i];
+
+        status = ADMXRC3_Unlock(info->hHeader, info->hHeaderBuffer);
+        if (status != ADMXRC3_SUCCESS) {
+            perror("Error unlocking header buffer");
+            return XDMA_ERROR;
+        }
+
+        status = ADMXRC3_Close(info->hDevice);
+        if (status != ADMXRC3_SUCCESS) {
+            perror("Error closing device");
+            return XDMA_ERROR;
+        }
+        status = ADMXRC3_Close(info->hHeader);
+        if (status != ADMXRC3_SUCCESS) {
+            perror("Error closing device");
+            return XDMA_ERROR;
+        }
+    }
+
+    status = ADMXRC3_Close(_hGlobalDevice);
+    if (status != ADMXRC3_SUCCESS) {
+        perror("Error closing device");
+        return XDMA_ERROR;
+    }
+
+    pthread_mutex_destroy(&_allocateMutex);
+    pthread_mutex_destroy(&_transferMutex);
 
     return XDMA_SUCCESS;
 }
@@ -187,27 +229,21 @@ xdma_status xdmaClose() {
         _queueFini(_devices[i].queue);
     }
 
-    /*status = ADMXRC3_Unlock(_hGlobalDevice, _hGLobalHeader);
+    status = ADMXRC3_Unlock(_hGlobalDevice, _hGLobalHeader);
     if (status != ADMXRC3_SUCCESS) {
         perror("Error unlocking global header buffer");
-        return XDMA_ERROR;
-    }*/
-
-    status = ADMXRC3_Close(_hGlobalDevice);
-    if (status != ADMXRC3_SUCCESS) {
-        perror("Error closing device");
         return XDMA_ERROR;
     }
 
     if (_validTicket != 0)
         return XDMA_ERROR;
 
-    pthread_mutex_destroy(&_allocateMutex);
-    pthread_mutex_destroy(&_transferMutex);
     pthread_mutex_destroy(&_streamReadMutex);
     pthread_mutex_destroy(&_streamWriteMutex);
 
-    return XDMA_SUCCESS;
+    xdma_status xstatus = xdmaFiniMem();
+
+    return xstatus;
 }
 
 xdma_status xdmaGetNumDevices(int *numDevices){
@@ -553,8 +589,6 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
         return XDMA_SUCCESS;
     }
 
-    printf("Start memcpy\n");
-
     unsigned int currentTransfer = 0;
     unsigned int i;
     pthread_mutex_lock(&_transferMutex);
@@ -579,7 +613,6 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 
     if (mode == XDMA_TO_DEVICE) {
         if (block) {
-            printf("Blocking transfer\n");
             status = ADMXRC3_WriteDMA(hDevice, CH_MMAP, 0, usr, len, bufferAddress);
         }
         else {
@@ -618,7 +651,6 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
             return XDMA_ERROR;
         }
     }
-    printf("End memcpy\n");
 
     return XDMA_SUCCESS;
 }
@@ -726,14 +758,6 @@ xdma_status xdmaInitHWInstrumentation() {
 
 xdma_status xdmaFiniHWInstrumentation() {
     return XDMA_ENOSYS;
-}
-
-xdma_status xdmaInitMem() {
-    return xdmaOpen();
-}
-
-xdma_status xdmaFiniMem() {
-    return xdmaClose();
 }
 
 xdma_status xdmaGetDeviceTime(uint64_t *time) {
