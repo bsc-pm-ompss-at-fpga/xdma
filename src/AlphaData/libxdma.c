@@ -9,17 +9,15 @@
 #include "util/queue.h"
 #include <admxrc3.h>
 
-#define BUS_IN_BYTES        4
-#define BUS_BURST           16
 #define MAX_DEVICES         5
 //Assume there only are 1 in + 1 out channel per device
 #define CHANNELS_PER_DEVICE 2
 #define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
-#define MAX_TRANSFERS 128
+#define MAX_TRANSFERS 1
 
 #define IN_CH_STREAM 0
 #define OUT_CH_STREAM 2
-#define CH_MMAP 1
+#define CH_MMAP 0
 #define HEADER_SIZE 32
 
 typedef unsigned char byte;
@@ -147,11 +145,11 @@ xdma_status xdmaOpen() {
 
     ADMXRC3_InitializeTicket(&_streamReadHeaderTicket);
     _validTicket = 0;
-    status = ADMXRC3_Lock(_hGlobalDevice, _globalHeader, HEADER_SIZE, &_hGLobalHeader);
+    /*status = ADMXRC3_Lock(_hGlobalDevice, _globalHeader, HEADER_SIZE, &_hGLobalHeader);
     if (status != ADMXRC3_SUCCESS) {
         perror("Error locking global header buffer");
         return XDMA_ERROR;
-    }
+    }*/
 
     return XDMA_SUCCESS;
 }
@@ -189,11 +187,11 @@ xdma_status xdmaClose() {
         _queueFini(_devices[i].queue);
     }
 
-    status = ADMXRC3_Unlock(_hGlobalDevice, _hGLobalHeader);
+    /*status = ADMXRC3_Unlock(_hGlobalDevice, _hGLobalHeader);
     if (status != ADMXRC3_SUCCESS) {
         perror("Error unlocking global header buffer");
         return XDMA_ERROR;
-    }
+    }*/
 
     status = ADMXRC3_Close(_hGlobalDevice);
     if (status != ADMXRC3_SUCCESS) {
@@ -453,8 +451,6 @@ static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsign
 
     size_t extraLength = len%32 != 0 ? (32 - len%32):0;
 
-    printf("Stream on device %d\n", currentTransfer);
-
     if (ch == XDMA_TO_DEVICE) {
         header[0] = (byte)dev;
         header[1] = (len >> 8*0) & 0xFF;
@@ -557,6 +553,8 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
         return XDMA_SUCCESS;
     }
 
+    printf("Start memcpy\n");
+
     unsigned int currentTransfer = 0;
     unsigned int i;
     pthread_mutex_lock(&_transferMutex);
@@ -581,6 +579,7 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 
     if (mode == XDMA_TO_DEVICE) {
         if (block) {
+            printf("Blocking transfer\n");
             status = ADMXRC3_WriteDMA(hDevice, CH_MMAP, 0, usr, len, bufferAddress);
         }
         else {
@@ -619,6 +618,7 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
             return XDMA_ERROR;
         }
     }
+    printf("End memcpy\n");
 
     return XDMA_SUCCESS;
 }
@@ -729,11 +729,11 @@ xdma_status xdmaFiniHWInstrumentation() {
 }
 
 xdma_status xdmaInitMem() {
-    return XDMA_SUCCESS;
+    return xdmaOpen();
 }
 
 xdma_status xdmaFiniMem() {
-    return XDMA_SUCCESS;
+    return xdmaClose();
 }
 
 xdma_status xdmaGetDeviceTime(uint64_t *time) {
