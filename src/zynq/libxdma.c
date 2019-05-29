@@ -239,9 +239,7 @@ xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len)
     *buffer = mmap(NULL, len, PROT_READ|PROT_WRITE, MAP_SHARED, _mem_fd, 0);
     if (*buffer == MAP_FAILED) {
         pthread_mutex_unlock(&_allocateMutex);
-        perror("Error allocating kernel buffer: mmap failed");
-        //TODO: return proper error codes (ENOMEM, etc)
-        return XDMA_ERROR;
+        return XDMA_ENOMEM;
     }
     //get the handle for the allocated buffer
     status = ioctl(_mem_fd, XDMAMEM_GET_LAST_KBUF, &ret);
@@ -283,7 +281,7 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
     xdma_status ret = XDMA_SUCCESS;
     size = ioctl(_mem_fd, XDMAMEM_RELEASE_KBUF, &info->handle);
     if (size <= 0) {
-        perror("could not release pinned buffer");
+        perror("Could not release pinned buffer");
         ret = XDMA_ERROR;
     } else if (munmap(info->ptr, size)) {
         perror("Failed to unmap pinned buffer");
