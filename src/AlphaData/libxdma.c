@@ -17,7 +17,7 @@
 
 #define IN_CH_STREAM 0
 #define OUT_CH_STREAM 2
-#define CH_MMAP 0
+#define CH_MMAP 1
 #define HEADER_SIZE 32
 
 typedef unsigned char byte;
@@ -81,12 +81,8 @@ static transfer_info_t _transfers[MAX_TRANSFERS];
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 
 xdma_status xdmaInitMem() {
-    //Previous addresses are reserved for the direct slave and accessible through a
-    //mapped pointer returned by ADMXRC3_MapWindow
-    _lastAddress = 0x10000;
 
-    pthread_mutex_init(&_allocateMutex, NULL);
-    pthread_mutex_init(&_transferMutex, NULL);
+    _lastAddress = 0;
 
     ADMXRC3_STATUS status = ADMXRC3_Open(0, &_hGlobalDevice);
     if (status != ADMXRC3_SUCCESS) {
@@ -103,14 +99,15 @@ xdma_status xdmaInitMem() {
             for (int j = 0; j < i; ++j)
                 ADMXRC3_Close(_transfers[j].hDevice);
             ADMXRC3_Close(_hGlobalDevice);
-            pthread_mutex_destroy(&_allocateMutex);
-            pthread_mutex_destroy(&_transferMutex);
             return XDMA_ERROR;
         }
         ADMXRC3_InitializeTicket(&info->ticket);
 
         info->used = false;
     }
+
+    pthread_mutex_init(&_allocateMutex, NULL);
+    pthread_mutex_init(&_transferMutex, NULL);
 
     return XDMA_SUCCESS;
 }
