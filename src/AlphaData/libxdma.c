@@ -17,7 +17,7 @@
 
 #define IN_CH_STREAM 0
 #define OUT_CH_STREAM 2
-#define CH_MMAP 1
+#define CH_MMAP 0
 #define HEADER_SIZE 32
 
 typedef unsigned char byte;
@@ -609,14 +609,18 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 
     if (mode == XDMA_TO_DEVICE) {
         if (block) {
+            //printf("Doing write of len %lu on address 0x%X\n", len, bufferAddress);
             status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
+            //printf("After write\n");
         }
         else {
             status = ADMXRC3_StartWriteDMA(hDevice, ticket, CH_MMAP, 0, usr, len, bufferAddress);
         }
     } else if (mode == XDMA_FROM_DEVICE) {
         if (block) {
+            //printf("Doing read of len %lu\n", len);
             status = ADMXRC3_ReadDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
+            //printf("After read\n");
         }
         else {
             status = ADMXRC3_StartReadDMA(hDevice, ticket, CH_MMAP, 0, usr, len, bufferAddress);

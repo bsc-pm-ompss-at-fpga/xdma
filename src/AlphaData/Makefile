@@ -1,7 +1,7 @@
 CC = gcc
 LDFLAGS := -lxdma -ladmxrc3
 CFLAGS := -c -Wall -Werror -std=c99 -g
-INCLUDES := -I. -I$(ALPHADATA_SDK)/include
+INCLUDES := -I. -I$(ALPHADATA_API)/include
 
 .PHONY: all
 all: build
