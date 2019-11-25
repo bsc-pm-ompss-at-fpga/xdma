@@ -5,6 +5,7 @@
 #include <alloca.h>
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "util/queue.h"
 #include <admxrc3.h>
@@ -573,7 +574,7 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 {
     ADMXRC3_TICKET* ticket;
     ADMXRC3_HANDLE hDevice;
-    ADMXRC3_STATUS status;
+    ADMXRC3_STATUS status = ADMXRC3_SUCCESS;
     alloc_info_t* info = (alloc_info_t*) buffer;
 
     //Copy from userspace memory to locked buffer
@@ -606,10 +607,14 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 
     unsigned int base = info->devAddr;
     unsigned int bufferAddress = base+offset;
+    //uint8_t* usrByte = (uint8_t*)usr;
 
     if (mode == XDMA_TO_DEVICE) {
         if (block) {
             //printf("Doing write of len %lu on address 0x%X\n", len, bufferAddress);
+            /*for (int i = 0; i < len; i += 16384) {
+                status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, &usrByte[i], 16384, bufferAddress + i);
+            }*/
             status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
             //printf("After write\n");
         }
@@ -639,16 +644,14 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
         *transfer = (xdma_transfer_handle)currentTransfer;
         _transfers[currentTransfer].type = MEMCPY;
     }
-    else {
-        if (status != ADMXRC3_SUCCESS) {
-            char* s = (char*)malloc(256);
-            printf("Len is %d and buffer address is %d\n", (int)len, (int)bufferAddress);
-            sprintf(s, "Error in %s operation of mmap channel. ADMXRC3_STATUS is %s: %s. errno", mode == XDMA_TO_DEVICE ? "write":"read",
-                    ADMXRC3_GetStatusStringA(status, true), ADMXRC3_GetStatusStringA(status, false));
-            perror(s);
-            free(s);
-            return XDMA_ERROR;
-        }
+    else if (status != ADMXRC3_SUCCESS) {
+        char* s = (char*)malloc(256);
+        printf("Len is %d and buffer address is %d\n", (int)len, (int)bufferAddress);
+        sprintf(s, "Error in %s operation of mmap channel. ADMXRC3_STATUS is %s: %s. errno", mode == XDMA_TO_DEVICE ? "write":"read",
+                ADMXRC3_GetStatusStringA(status, true), ADMXRC3_GetStatusStringA(status, false));
+        perror(s);
+        free(s);
+        return XDMA_ERROR;
     }
 
     return XDMA_SUCCESS;
