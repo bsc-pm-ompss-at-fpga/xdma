@@ -1,6 +1,6 @@
 CC = gcc
-LDFLAGS := -lxdma -ladmxrc3
-CFLAGS := -c -Wall -Werror -std=gnu99 -O3 #-g
+LDFLAGS := -L$(ALPHADATA_SDK)/lib -ladmxrc3 $(LDFLAGS)
+CFLAGS := -c -Wall -Werror -std=c99 -g
 INCLUDES := -I. -I$(ALPHADATA_SDK)/include
 
 .PHONY: all
@@ -14,7 +14,7 @@ libxdma.o : libxdma.c ../libxdma.h
 
 
 libxdma.so : libxdma.o
-	$(CC) -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o
+	$(CC) $(LDFLAGS) -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o
 
 libxdma-static.a : libxdma.o
 	ar rcs $@ $^
