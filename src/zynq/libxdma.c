@@ -1,7 +1,7 @@
 #include "../libxdma.h"
 
 #define XDMA_FILEPATH   "/dev/ompss_fpga/xdma"
-#define INSTR_FILEPATH  "/dev/ompss_fpga/hw_instrumentation"
+#define INSTR_FILEPATH  "/dev/ompss_fpga/hwcounter"
 #define MEM_FILEPATH    "/dev/ompss_fpga/xdma_mem"
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
@@ -568,7 +568,7 @@ uint64_t xdmaGetInstrumentationTimerAddr() {
 
     int status;
     uint64_t addr;
-    status = ioctl(_instr_fd, HWINSTR_GET_ADDR, &addr);
+    status = ioctl(_instr_fd, HWCOUNTER_GET_ADDR, &addr);
     if (status) {
         perror("Could not get instrumentation address");
         return 0;
