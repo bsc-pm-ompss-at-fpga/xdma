@@ -383,9 +383,27 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
         for (; i<len; i++) {
             dst[i] = src[i];
         }
-
     } else if (mode == XDMA_FROM_DEVICE) {
-        memcpy(usr, ((unsigned char *)info->ptr) + offset, len);
+        //memcpy(usr, ((unsigned char *)info->ptr) + offset, len);
+        int i;
+        uint64_t *lsrc, *ldst;
+        lsrc = (uint64_t*)((unsigned char*)info->ptr + offset);
+        ldst = (uint64_t*)usr;
+        //do not allow unaligned transfers
+        if ((uintptr_t)lsrc % sizeof(uint64_t)) {
+            return XDMA_ERROR;
+        }
+
+        for (i=0; i<len/sizeof(uint64_t); i++) {
+            ldst[i] = lsrc[i];
+        }
+        i *= sizeof(uint64_t);
+        char *src, *dst;
+        src = info->ptr + offset;
+        dst = usr;
+        for (; i<len; i++) {
+            dst[i] = src[i];
+        }
     } else if (mode == XDMA_DEVICE_TO_DEVICE) {
         ret = XDMA_ENOSYS;
     } else {
