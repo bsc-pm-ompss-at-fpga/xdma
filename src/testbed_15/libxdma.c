@@ -399,48 +399,79 @@ xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int off
     return _xdmaStream(buffer, len, offset, dev, channel, 0 /*block*/, transfer);
 }
 
+#define USE_CDMA
 xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
         xdma_dir mode)
 {
-    alloc_info_t *info = (alloc_info_t *)buffer;
-    xdma_status ret = XDMA_SUCCESS;
+#ifdef USE_CDMA
+    xdma_transfer_handle handle;
+    xdmaMemcpyAsync(usr, buffer, len, offset, mode, &handle);
+    xdmaWaitTransfer(&handle);
+    //TODO error management
+    return XDMA_SUCCESS;
+#else
+    alloc_info_t *info = (alloc_info_t*)buffer;
     if (mode == XDMA_TO_DEVICE) {
-        //memcpy(((unsigned char *)info->ptr) + offset, usr, len);
-        int i;
-        uint64_t *lsrc, *ldst;
-        lsrc = (uint64_t*)usr;
-        ldst = (uint64_t*)((unsigned char*)info->ptr + offset);
-        //do not allow unaligned transfers
-        if ((uintptr_t)ldst % sizeof(uint64_t)) {
-            return XDMA_ERROR;
-        }
-
-        for (i=0; i<len/sizeof(uint64_t); i++) {
-            ldst[i] = lsrc[i];
-        }
-        i *= sizeof(uint64_t);
-        char *src, *dst;
-        src = usr;
-        dst = info->ptr + offset;
-        for (; i<len; i++) {
-            dst[i] = src[i];
-        }
-
-    } else if (mode == XDMA_FROM_DEVICE) {
-        memcpy(usr, ((unsigned char *)info->ptr) + offset, len);
-    } else if (mode == XDMA_DEVICE_TO_DEVICE) {
-        ret = XDMA_ENOSYS;
+        memcpy(((unsigned char *)info->ptr) + offset, usr, len);
     } else {
-        ret = XDMA_EINVAL;
+        memcpy(usr, ((unsigned char *)info->ptr) + offset, len);
     }
-    return ret;
+    return XDMA_SUCCESS;
+#endif
 }
 
-xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_dir mode, xdma_transfer_handle *transfer)
+
+
+xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
+        unsigned int offset, xdma_dir mode, xdma_transfer_handle *transfer)
 {
-    *transfer = (xdma_transfer_handle)NULL;
-    return xdmaMemcpy(usr, buffer, len, offset, mode);
+//    *transfer = (xdma_transfer_handle)NULL;
+//    return xdmaMemcpy(usr, buffer, len, offset, mode);
+
+
+    int status;
+	struct xdma_memcpy_info memcpyInfo;
+    alloc_info_t *bInfo = (alloc_info_t*)buffer;
+
+    if (mode == XDMA_TO_DEVICE) {
+        memcpyInfo.src_address = (unsigned long)usr;
+        memcpyInfo.src_offset = 0;
+        memcpyInfo.dst_address = bInfo->devAddr;
+        memcpyInfo.dst_offset = offset;
+        memcpyInfo.direction = XDMA_MEM_TO_DEV;
+
+    } else if (mode == XDMA_FROM_DEVICE) {
+        memcpyInfo.src_address = bInfo->devAddr;
+        memcpyInfo.src_offset = offset;
+        memcpyInfo.dst_address = (unsigned long)usr;
+        memcpyInfo.dst_offset = 0;
+        memcpyInfo.direction = XDMA_DEV_TO_MEM;
+    } else {
+        //dev to dev is currently unsupported
+    }
+	memcpyInfo.size = len;
+
+	status = ioctl(_fd, XDMA_PREP_MEMCPY, &memcpyInfo);
+	if (status < 0) {
+		perror("cdma_memcpy failed\n");
+		return XDMA_ERROR;
+	}
+
+	struct xdma_transfer *trans = malloc(sizeof(struct xdma_transfer));
+
+	trans->chan = memcpyInfo.chan;
+	trans->completion = memcpyInfo.completion;
+	trans->cookie = memcpyInfo.cookie;
+	trans->wait = 0;    //do not wait
+	trans->sg_transfer = memcpyInfo.sg_transfer;
+	status = ioctl(_fd, XDMA_START_TRANSFER, trans);
+	if (status < 0) {
+		perror("Error submitting cdma transfer");
+		return XDMA_ERROR;
+	}
+	*transfer = (xdma_transfer_handle)trans;
+	return XDMA_SUCCESS;
+
 }
 
 static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, bool block) {
