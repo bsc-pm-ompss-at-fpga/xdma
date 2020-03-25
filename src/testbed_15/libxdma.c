@@ -9,7 +9,7 @@
 
 #define DEV_MEM_SIZE        0x400000000 ///<Device memory (16GB)
 #define DEV_BASE_ADDR       0x2000000000
-#define DEV_ALIGN           512/8
+#define DEV_ALIGN           (512/8)
 
 #include "ompss_fpga.h"
 
