@@ -21,6 +21,10 @@
 #define CH_MMAP 0
 #define HEADER_SIZE 32
 
+#define DMA_WRITE_TRANSACTION_LEN 16384
+
+#define mmin(a,b) ((a)<(b)?(a):(b))
+
 typedef unsigned char byte;
 
 struct xdma_dev {
@@ -607,15 +611,27 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 
     unsigned int base = info->devAddr;
     unsigned int bufferAddress = base+offset;
-    //uint8_t* usrByte = (uint8_t*)usr;
 
     if (mode == XDMA_TO_DEVICE) {
         if (block) {
+            ADMXRC3_BUFFER_HANDLE hBuffer;
+            status = ADMXRC3_Lock(_hGlobalDevice, usr, len, &hBuffer);
+            if (status != ADMXRC3_SUCCESS) {
+                perror("Error locking buffer");
+                return XDMA_ERROR;
+            }
             //printf("Doing write of len %lu on address 0x%X\n", len, bufferAddress);
-            /*for (int i = 0; i < len; i += 16384) {
-                status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, &usrByte[i], 16384, bufferAddress + i);
-            }*/
-            status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
+            for (size_t i = 0; i < len; i += DMA_WRITE_TRANSACTION_LEN) {
+                size_t actualLen = mmin(len-i, DMA_WRITE_TRANSACTION_LEN);
+                status = ADMXRC3_WriteDMALocked(_hGlobalDevice, CH_MMAP, 0, hBuffer, i, actualLen, bufferAddress + i);
+                if (status != ADMXRC3_SUCCESS) {
+                    perror("Error in write operation of mmap channel");
+                    ADMXRC3_Unlock(_hGlobalDevice, hBuffer);
+                    return XDMA_ERROR;
+                }
+            }
+            ADMXRC3_Unlock(_hGlobalDevice, hBuffer);
+            //status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
             //printf("After write\n");
         }
         else {
@@ -623,9 +639,7 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
         }
     } else if (mode == XDMA_FROM_DEVICE) {
         if (block) {
-            //printf("Doing read of len %lu\n", len);
             status = ADMXRC3_ReadDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
-            //printf("After read\n");
         }
         else {
             status = ADMXRC3_StartReadDMA(hDevice, ticket, CH_MMAP, 0, usr, len, bufferAddress);
