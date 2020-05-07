@@ -32,6 +32,7 @@
 //Assume there only are 1 in + 1 out channel per device
 #define CHANNELS_PER_DEVICE 2
 #define MAX_CHANNELS        MAX_DEVICES*CHANNELS_PER_DEVICE
+#define MAX_DMA_TRANSFER_SIZE   (4096*254)  //254 pages
 
 static int _fd;
 static int _instr_fd = 0;
@@ -421,8 +422,7 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
 }
 
 
-
-xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
+xdma_status xdmaMemcpyAsyncChunk(void *usr, xdma_buf_handle buffer, size_t len,
         unsigned int offset, xdma_dir mode, xdma_transfer_handle *transfer)
 {
 //    *transfer = (xdma_transfer_handle)NULL;
@@ -472,6 +472,25 @@ xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
 	*transfer = (xdma_transfer_handle)trans;
 	return XDMA_SUCCESS;
 
+}
+
+xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
+        unsigned int offset, xdma_dir mode, xdma_transfer_handle *transfer) {
+    int rem = len;
+    int transferred = 0;
+    xdma_transfer_handle tmpHandle = 0;
+    xdma_status ret;
+    while (transferred < len) {
+        int chunkSize = rem < MAX_DMA_TRANSFER_SIZE ? rem : MAX_DMA_TRANSFER_SIZE;
+        ret = xdmaWaitTransfer(&tmpHandle);  //Wait for previous transfer to finish
+        if (ret != XDMA_SUCCESS) return ret;
+        xdmaMemcpyAsyncChunk(usr + transferred, buffer, chunkSize, offset + transferred, mode, &tmpHandle);
+        if (ret != XDMA_SUCCESS) return ret;
+        transferred += chunkSize;
+        rem -= chunkSize;
+    }
+    *transfer = tmpHandle;
+    return ret;
 }
 
 static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, bool block) {
