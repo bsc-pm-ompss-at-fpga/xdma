@@ -614,6 +614,7 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
 
     if (mode == XDMA_TO_DEVICE) {
         if (block) {
+            pthread_mutex_lock(&_transferMutex);
             ADMXRC3_BUFFER_HANDLE hBuffer;
             status = ADMXRC3_Lock(_hGlobalDevice, usr, len, &hBuffer);
             if (status != ADMXRC3_SUCCESS) {
@@ -631,6 +632,7 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
                 }
             }
             ADMXRC3_Unlock(_hGlobalDevice, hBuffer);
+            pthread_mutex_unlock(&_transferMutex);
             //status = ADMXRC3_WriteDMA(_hGlobalDevice, CH_MMAP, 0, usr, len, bufferAddress);
             //printf("After write\n");
         }
