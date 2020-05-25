@@ -48,6 +48,7 @@ static struct xdma_chan_cfg _channels[MAX_CHANNELS];
 static unsigned int _kUsedSpace;
 static pthread_mutex_t _allocateMutex;
 static pthread_mutex_t *_submitMutexes;
+static pthread_mutex_t _copyMutex;
 static int _open_cnt = 0;
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
@@ -480,15 +481,17 @@ xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
     int transferred = 0;
     xdma_transfer_handle tmpHandle = 0;
     xdma_status ret;
+    pthread_mutex_lock(&_copyMutex);
     while (transferred < len) {
         int chunkSize = rem < MAX_DMA_TRANSFER_SIZE ? rem : MAX_DMA_TRANSFER_SIZE;
         ret = xdmaWaitTransfer(&tmpHandle);  //Wait for previous transfer to finish
-        if (ret != XDMA_SUCCESS) return ret;
+        if (ret != XDMA_SUCCESS) break;
         xdmaMemcpyAsyncChunk(usr + transferred, buffer, chunkSize, offset + transferred, mode, &tmpHandle);
-        if (ret != XDMA_SUCCESS) return ret;
+        if (ret != XDMA_SUCCESS) break;
         transferred += chunkSize;
         rem -= chunkSize;
     }
+    pthread_mutex_unlock(&_copyMutex);
     *transfer = tmpHandle;
     return ret;
 }
@@ -635,6 +638,7 @@ xdma_status xdmaInitMem() {
 
     //Initialize mutex
     pthread_mutex_init(&_allocateMutex, NULL);
+    pthread_mutex_init(&_copyMutex, NULL);
     return XDMA_SUCCESS;
 
 dev_mem_map_error:
