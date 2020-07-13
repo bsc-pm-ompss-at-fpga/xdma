@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 
 #include "../libxdma.h"
@@ -164,7 +165,30 @@ xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int off
  *       hang
  */
 xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_dir mode);
+        xdma_dir mode) {
+    ssize_t tx;
+    off_t seekOff;
+    off_t devOffset = (off_t)buffer + offset;
+    seekOff = lseek(_qdmaFd, devOffset, SEEK_SET);
+    if (seekOff != devOffset) {
+        if (seekOff < 0) perror("XDMA dev offset:");
+        return XDMA_ERROR;
+    }
+    if (mode == XDMA_TO_DEVICE) {
+        tx = write(_qdmaFd, usr, len);
+    } else if (mode == XDMA_FROM_DEVICE) {
+        tx = read(_qdmaFd, usr, len);
+    } else {
+        return XDMA_ENOSYS; //Device to device transfers not yet implemented
+    }
+    if (tx != len) {
+        return XDMA_ERROR;
+    } else {
+        return XDMA_SUCCESS;
+    }
+
+}
+
 xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
         xdma_dir mode, xdma_transfer_handle *transfer);
 
