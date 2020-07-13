@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -17,9 +17,15 @@
 #define QDMA_DEV_ID 0x02000
 #define QDMA_Q_IDX  1
 
+#define DEV_ALIGN   (512/8) //Buses are 512b wide
+#define DEV_MEM_SIZE        0x400000000 ///<Device memory (16GB)
+
 int _qdmaFd;
 
+static uintptr_t _devMem;
+static uintptr_t _curDevMemPtr;
 
+static pthread_mutex_t _allocateMutex;
 
 static void parse_dev_list(const char *devList) {
     //parse device list
@@ -68,6 +74,8 @@ xdma_status xdmaOpen() {
         perror("XDMA: ");
         return XDMA_ERROR;
     }
+    xdmaInitMem();
+
     //TODO: Cleanup in case of error
 
 }
@@ -105,18 +113,29 @@ xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len)
     return XDMA_ENOSYS;
 }
 
-/*!
- * Allocate a buffer to be transferred to a xDMA device (not accessible from the host)
- * \param[out] handle   Buffer handle
- * \param[in] len       Buffer length in bytes
- */
-xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len);
+xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len) {
+    void *ptr;
+    size_t nlen;
 
-/*!
- * Free a buffer
- * \param[in] handle    Buffer handle to be freed (may be from any xdmaAllocate)
- */
-xdma_status xdmaFree(xdma_buf_handle handle);
+    pthread_mutex_lock(&_allocateMutex);
+    nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
+    //adjust size so we always get aligned addresses
+    if (_curDevMemPtr + nlen > DEV_MEM_SIZE) {  //_curDevMemPtr starts at 0
+        pthread_mutex_unlock(&_allocateMutex);
+        return XDMA_ENOMEM;
+    }
+    ptr = (void*)_curDevMemPtr;
+    _curDevMemPtr += nlen;
+    pthread_mutex_unlock(&_allocateMutex);
+
+    *handle = ptr;  //Directly store device pointer into handle
+
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaFree(xdma_buf_handle handle) {
+    return XDMA_SUCCESS;    //Do nothing
+}
 
 xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
         xdma_device dev, xdma_channel channel) {
@@ -168,14 +187,10 @@ xdma_status xdmaTestTransfer(xdma_transfer_handle *transfer);
  */
 xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer);
 
-/*!
- * Get the internal device address to reference a buffer
- * \param[in] buffer      Buffer handle
- * \param[out] devAddress Address of buffer in the device
- * \return                XDMA_SUCCESS if the devAddress has been successfully set,
- *                        XDMA_ERROR otherwise
- */
-xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *devAddress);
+xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *devAddress) {
+    *devAddress = (unsigned long)buffer; //a buffer handle is just the device pointer
+    return XDMA_SUCCESS;
+}
 
 /*!
  * Initialize the support for HW instrumentation.
@@ -225,7 +240,12 @@ uint64_t xdmaGetInstrumentationTimerAddr();
  *          XDMA_ENOENT     if memory node does not exist
  *          XDMA_ERROR      in case of any other error
  */
-xdma_status xdmaInitMem();
+xdma_status xdmaInitMem() {
+    //Initialize dummy allocator
+    pthread_mutex_init(&_allocateMutex, NULL);
+    _curDevMemPtr = 0;
+
+}
 
 /*!
  * Deinitialize the DMA memory subsystem
