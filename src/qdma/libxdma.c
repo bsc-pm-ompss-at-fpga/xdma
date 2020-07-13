@@ -190,26 +190,18 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
 }
 
 xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_dir mode, xdma_transfer_handle *transfer);
+        xdma_dir mode, xdma_transfer_handle *transfer) {
+    *transfer = 0;
+    return xdmaMemcpy(usr, buffer, len, offset, mode);
+}
 
-/*!
- * Test the status of a transfer (finished, pending or error)
- * \param[in] transfer  DMA transfer handle to be tested
- * \return              Transfer status
- *                      XDMA_SUCCESS if the transfer has finish successfully
- *                      XDMA_PENDING if the transfer has not yet finished
- *                      XDMA_ERROR if an error has occurred
- */
-xdma_status xdmaTestTransfer(xdma_transfer_handle *transfer);
+xdma_status xdmaTestTransfer(xdma_transfer_handle *transfer) {
+    return XDMA_SUCCESS;
+}
 
-/*!
- * Wait for a transfer to finish
- * \param[in] transfer  Transfer handle
- * \return              XDMA_SUCCESS if the transfer has finished successfully
- *                      XDMA_PENDING if the transfer has already not finished
- *                      XDMA_ERROR if an error has occurred
- */
-xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer);
+xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer) {
+    return XDMA_SUCCESS;
+}
 
 xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *devAddress) {
     *devAddress = (unsigned long)buffer; //a buffer handle is just the device pointer
