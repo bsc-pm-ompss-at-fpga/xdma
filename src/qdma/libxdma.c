@@ -72,9 +72,6 @@ xdma_status xdmaOpen() {
 
 }
 
-/*!
- * Cleanup the userspace library & driver
- */
 xdma_status xdmaClose() {
 
     //close queue files
@@ -82,39 +79,31 @@ xdma_status xdmaClose() {
     //delete queues
 }
 
-/*!
- * Get the number of devices
- * \param[out] numDevices Number of devices
- */
-xdma_status xdmaGetNumDevices(int *numDevices);
+xdma_status xdmaGetNumDevices(int *numDevices) {
 
-/*!
- * Get the device handles for the devices present in the system
- * \param[in] entries   Number of device handles that will be retrieved
- * \param[out] devices  Array that will hold the device handles.
- *      This should have enough capacity to hold at least entries elements
- * \param[out] devs     Number of handles copied to the devices array
- * \return XDMA_SUCCESS on success, XDMA_ERROR otherwise
- */
-xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs);
+    //Only used for stream devices
+    //TODO: Return the number of devices if stream support is enabled
+    *numDevices = 0;
+    return XDMA_SUCCESS;
+}
 
-/*!
- * Get the device channel handle
- * Each device can have 1 input + 1 output channel
- *
- * \param[in] device     Device that will be connected to the channel
- * \param[in] direction  Direction of the channel
- * \param[out] channel   Handle to the channel
- */
-xdma_status xdmaGetDeviceChannel(xdma_device device, xdma_dir direction, xdma_channel *channel);
+xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs) {
+    //Only used for streams
+    *devs = 0;
 
-/*!
- * Allocate a buffer to be transferred to a xDMA device and accessible from host and device
- * \param[out] buffer   Pointer to the allocated buffer
- * \param[out] handle   Buffer handle
- * \param[in] len       Buffer length in bytes
- */
-xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len);
+    //TODO: Return the number of devices if stream is enabled
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaGetDeviceChannel(xdma_device device, xdma_dir direction, xdma_channel *channel) {
+    //No stream support
+    return XDMA_ENOSYS;
+}
+
+xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len) {
+    //QDMA does not support memory mapped device buffers
+    return XDMA_ENOSYS;
+}
 
 /*!
  * Allocate a buffer to be transferred to a xDMA device (not accessible from the host)
@@ -129,23 +118,15 @@ xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len);
  */
 xdma_status xdmaFree(xdma_buf_handle handle);
 
-/*!
- * Submit a buffer in a device channel
- * \param[in] buffer    Buffer handle
- * \param[in] len       Buffer length
- * \param[in] offset    Transfer offset
- * \param[in] dev       DMA device to transfer data
- * \param[in] channel   DMA channel to operate
- * \param[out] transfer Pointer to the variable that will hold the transfer handle.
- *                      (Only available in async version)
- * NOTE: An async operation must be synchronized at some point using xdmaTestTransfer
- *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
- *       hang
- */
 xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_device dev, xdma_channel channel);
+        xdma_device dev, xdma_channel channel) {
+    return XDMA_ENOSYS;
+}
+
 xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
-        xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
+        xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer) {
+    return XDMA_ENOSYS;
+}
 
 /*!
  * Copy to/from a buffer from/to userspace memory
