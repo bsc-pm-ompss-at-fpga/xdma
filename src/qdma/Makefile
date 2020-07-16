@@ -20,3 +20,32 @@ libxdma.so: libxdma.o
 libxdma.o: libxdma.c
 	$(CC) $(CFLAGS) libxdma.c $(INCLUDES) -pthread -fPIC -c -g
 
+.PHONY: ../libxdma_version.h
+libxdma_version.h: ../libxdma_version_template.h
+	@head -n 6 $^ >$@
+ifeq (x$(shell git rev-parse --is-bare-repository 2>/dev/null), xfalse)
+	@echo "/* Build commit" >>$@
+	git show -s >>$@
+	@echo "*/" >>$@
+	@echo "#define LIBXDMA_VERSION_COMMIT \\" >>$@
+	@git show -s --format=%H >>$@
+	@echo "" >>$@
+	@echo "/* Build branch and status" >>$@
+	git status -b -s >>$@
+	@echo "*/" >>$@
+else
+	@echo "#define LIBXDMA_VERSION_COMMIT \\" >>$@
+	@echo "unknown" >>$@
+endif
+	@tail -n 2 $^ >>$@
+
+install: libxdma.so libxdma-static.a ../libxdma.h libxdma_version.h
+	mkdir -p $(PREFIX)/lib
+	cp libxdma.so libxdma-static.a $(PREFIX)/lib/
+	mkdir -p $(PREFIX)/include
+	cp ../libxdma.h libxdma_version.h $(PREFIX)/include/
+
+.PHONY: clean
+clean:
+	rm -f *.o libxdma.so libxdma-static.a libxdma_version.h
+	rm -rf html latex
