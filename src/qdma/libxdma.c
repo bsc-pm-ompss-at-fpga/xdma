@@ -268,5 +268,7 @@ xdma_status xdmaInitMem() {
  * \return  XDMA_SUCCESS    on success
  *          XDMA_ERROR      otherwise
  */
-xdma_status xdmaFiniMem();
+xdma_status xdmaFiniMem() {
+    return XDMA_SUCCESS;    //Do nothing
+}
 
