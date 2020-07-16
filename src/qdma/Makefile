@@ -15,7 +15,7 @@ all: build
 build: libxdma.so
 
 libxdma.so: libxdma.o
-	$(CC) -g $(LDFLAGS_) -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o $(QDMAUTILS_OBJ)
+	$(CC) -g -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o $(QDMAUTILS_OBJ) $(LDFLAGS_)
 
 libxdma.o: libxdma.c
 	$(CC) $(CFLAGS) libxdma.c $(INCLUDES) -pthread -fPIC -c -g
