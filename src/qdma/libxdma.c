@@ -27,6 +27,7 @@ static uintptr_t _devMem;
 static uintptr_t _curDevMemPtr;
 
 static pthread_mutex_t _allocateMutex;
+static pthread_mutex_t _copyMutex;
 
 static void parse_dev_list(const char *devList) {
     //parse device list
@@ -169,9 +170,11 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
     ssize_t tx;
     off_t seekOff;
     off_t devOffset = (off_t)buffer + offset;
+    pthread_mutex_lock(&_copyMutex);
     seekOff = lseek(_qdmaFd, devOffset, SEEK_SET);
     if (seekOff != devOffset) {
         if (seekOff < 0) perror("XDMA dev offset:");
+        pthread_mutex_unlock(&_copyMutex);
         return XDMA_ERROR;
     }
     if (mode == XDMA_TO_DEVICE) {
@@ -179,8 +182,10 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
     } else if (mode == XDMA_FROM_DEVICE) {
         tx = read(_qdmaFd, usr, len);
     } else {
+        pthread_mutex_unlock(&_copyMutex);
         return XDMA_ENOSYS; //Device to device transfers not yet implemented
     }
+    pthread_mutex_unlock(&_copyMutex);
     if (tx != len) {
         return XDMA_ERROR;
     } else {
@@ -259,6 +264,7 @@ uint64_t xdmaGetInstrumentationTimerAddr();
 xdma_status xdmaInitMem() {
     //Initialize dummy allocator
     pthread_mutex_init(&_allocateMutex, NULL);
+    pthread_mutex_init(&_copyMutex, NULL);
     _curDevMemPtr = 0;
 
 }
