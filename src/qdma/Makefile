@@ -39,9 +39,9 @@ else
 endif
 	@tail -n 2 $^ >>$@
 
-install: libxdma.so libxdma-static.a ../libxdma.h libxdma_version.h
+install: libxdma.so ../libxdma.h libxdma_version.h
 	mkdir -p $(PREFIX)/lib
-	cp libxdma.so libxdma-static.a $(PREFIX)/lib/
+	cp libxdma.so $(PREFIX)/lib/
 	mkdir -p $(PREFIX)/include
 	cp ../libxdma.h libxdma_version.h $(PREFIX)/include/
 
