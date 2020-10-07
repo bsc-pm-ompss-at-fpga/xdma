@@ -49,27 +49,26 @@ xdma_status xdmaOpen() {
     //Create queue
     //  Creating single queue
     //Assuming that the device has already a maximum number of queues defined
-    cmd.if_bdf = QDMA_DEV_ID;
-
-    //add a queue
-    cmd.op = XNL_CMD_Q_ADD;
-    cmd.req.qparm.sflags = 1 << QPARM_MODE;
-    cmd.req.qparm.flags |= XNL_F_QMODE_MM;
-    cmd.req.qparm.sflags |= 1 << QPARM_IDX;
-    cmd.req.qparm.idx = QDMA_Q_IDX;
-    cmd.req.qparm.num_q = 1;
-    cmd.req.qparm.sflags |= 1 << QPARM_DIR;
-    cmd.req.qparm.flags |= XNL_F_QDIR_BOTH;
-    qdma_q_add(&cmd);
-
-    cmd.op = XNL_CMD_Q_START;   //Reuse parameters
-    //start queue
-    qdma_q_start(&cmd);
+    //    cmd.if_bdf = QDMA_DEV_ID;
+    //
+    //    //add a queue
+    //    cmd.op = XNL_CMD_Q_ADD;
+    //    cmd.req.qparm.sflags = 1 << QPARM_MODE;
+    //    cmd.req.qparm.flags |= XNL_F_QMODE_MM;
+    //    cmd.req.qparm.sflags |= 1 << QPARM_IDX;
+    //    cmd.req.qparm.idx = QDMA_Q_IDX;
+    //    cmd.req.qparm.num_q = 1;
+    //    cmd.req.qparm.sflags |= 1 << QPARM_DIR;
+    //    cmd.req.qparm.flags |= XNL_F_QDIR_BOTH;
+    //    qdma_q_add(&cmd);
+    //
+    //    cmd.op = XNL_CMD_Q_START;   //Reuse parameters
+    //    //start queue
+    //    qdma_q_start(&cmd);
 
     //Open files
     char devFileName[24];
     sprintf(devFileName, "/dev/qdma%05x-MM-%d", QDMA_DEV_ID, QDMA_Q_IDX);
-    printf("%s\n", devFileName);
 
     _qdmaFd = open(devFileName, O_RDWR);
     if (_qdmaFd < 0) {
@@ -187,6 +186,7 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
     }
     pthread_mutex_unlock(&_copyMutex);
     if (tx != len) {
+        perror("XDMA memcpy error");
         return XDMA_ERROR;
     } else {
         return XDMA_SUCCESS;
