@@ -69,7 +69,6 @@ xdma_status xdmaOpen() {
     //Open files
     char devFileName[24];
     sprintf(devFileName, "/dev/qdma%05x-MM-%d", QDMA_DEV_ID, QDMA_Q_IDX);
-    printf("%s\n", devFileName);
 
     _qdmaFd = open(devFileName, O_RDWR);
     if (_qdmaFd < 0) {
