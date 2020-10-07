@@ -187,6 +187,7 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
     }
     pthread_mutex_unlock(&_copyMutex);
     if (tx != len) {
+        perror("XDMA memcpy error");
         return XDMA_ERROR;
     } else {
         return XDMA_SUCCESS;
