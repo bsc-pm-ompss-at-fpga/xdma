@@ -2,7 +2,7 @@
 
 ### Prerequisites
 
- - `ompss_fpga.h` header file from [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module).
+ - `ompss_fpga.h` header file from [OmpSs@FPGA kernel module](https://gitlab.bsc.es/ompss-at-fpga/ompss-at-fpga-kernel-module).
  - Linux kernel headers.  
    In Debian based systems, they can be installed using the following command: `apt install linux-headers-$(uname -r)`
 
@@ -10,7 +10,7 @@
 
   1. Clone the repository or download the latest stable version.
     ```
-    git clone https://pm.bsc.es/gitlab/ompss-at-fpga/xdma.git
+    git clone https://gitlab.bsc.es/ompss-at-fpga/xdma.git
     cd xdma/src/zynq
     ```
 
@@ -19,7 +19,7 @@
     ```
     export CROSS_COMPILE=arm-linux-gnueabihf-
     ```
-    * `KERNEL_MODULE_DIR`. Path where to find the `ompss_fpga.h` header file of [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module). For example:
+    * `KERNEL_MODULE_DIR`. Path where to find the `ompss_fpga.h` header file of [OmpSs@FPGA kernel module](https://gitlab.bsc.es/ompss-at-fpga/ompss-at-fpga-kernel-module). For example:
     ```
     export KERNEL_MODULE_DIR=/path/to/ompss-at-fpga/kernel/module/src
     ```
