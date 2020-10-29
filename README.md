@@ -4,8 +4,6 @@ This repository contains a library to stream in/out data to/from FPGAs.
 Moreover, it provides an interface to allocate memory for such data transfers.
 They are expected to work, at least, in Linux kernel 3.19 and 4.6; without matter if they are 32/64 bits.
 
-> **NOTE: The xdma driver has been deleted and the functionalities have been implemented in the new [OmpSs@FPGA kernel module](https://pm.bsc.es/gitlab/ompss-at-fpga/ompss-at-fpga-kernel-module).**
-
 ### Build the library
 
 The `src` directory contains a folder for each supported platform.
