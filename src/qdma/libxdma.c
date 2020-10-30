@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "../libxdma.h"
 
@@ -34,8 +35,9 @@
 #include "qdmautils.h"
 #include "qdma_nl.h"
 
-#define QDMA_DEV_ID 0x02000
+#define QDMA_DEV_ID "02000"
 #define QDMA_Q_IDX  1
+#define QDMA_DEV_ID_ENV     "XDMA_QDMA_DEV"
 
 #define DEV_ALIGN   (512/8) //Buses are 512b wide
 #define DEV_MEM_SIZE        0x400000000 ///<Device memory (16GB)
@@ -53,6 +55,14 @@ static void parse_dev_list(const char *devList) {
     //printf("%s\n", devList);
 }
 
+/// Get qdma device id from env variable or use the default
+static const char *getDeviceId(){
+    const char* devId = getenv(QDMA_DEV_ID_ENV);
+    if (!devId)
+        return QDMA_DEV_ID;
+    else
+        return devId;
+}
 
 xdma_status xdmaOpen() {
 
@@ -87,11 +97,17 @@ xdma_status xdmaOpen() {
 
     //Open files
     char devFileName[24];
-    sprintf(devFileName, "/dev/qdma%05x-MM-%d", QDMA_DEV_ID, QDMA_Q_IDX);
+    const char* devId = getDeviceId();
+    sprintf(devFileName, "/dev/qdma%s-MM-%d", devId, QDMA_Q_IDX);
 
     _qdmaFd = open(devFileName, O_RDWR);
     if (_qdmaFd < 0) {
         perror("XDMA: ");
+        if (errno == ENOENT){
+            fprintf(stderr, "%s not found!\n", devFileName);
+            fprintf(stderr, "Note: XDMA_QDMA_DEVID env variable should contain\
+                    the qdma device ID ");
+        }
         return XDMA_ERROR;
     }
     xdmaInitMem();
