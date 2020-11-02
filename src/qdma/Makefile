@@ -22,7 +22,7 @@ libxdma.o: libxdma.c
 
 .PHONY: ../libxdma_version.h
 libxdma_version.h: ../libxdma_version_template.h
-	@head -n 6 $^ >$@
+	@awk '1;/#define LIBXDMA_VERSION_MINOR/{exit}' $^ >$@
 ifeq (x$(shell git rev-parse --is-bare-repository 2>/dev/null), xfalse)
 	@echo "/* Build commit" >>$@
 	git show -s >>$@
