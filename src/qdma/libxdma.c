@@ -32,8 +32,7 @@
 #include "../libxdma.h"
 
 //#include "qdma_nl.h"
-#include "qdmautils.h"
-#include "qdma_nl.h"
+//#include "qdmautils.h"
 
 #define QDMA_DEV_ID "02000"
 #define QDMA_Q_IDX  1
@@ -67,8 +66,8 @@ static const char *getDeviceId(){
 xdma_status xdmaOpen() {
 
     //get device info in order to know which files we need to open
-    struct xcmd_info cmd;
-    memset(&cmd, 0, sizeof(struct xcmd_info));
+    //struct xcmd_info cmd;
+    //memset(&cmd, 0, sizeof(struct xcmd_info));
     //cmd.op = XNL_CMD_DEV_LIST;
     //cmd.log_msg_dump = parse_dev_list;
 
