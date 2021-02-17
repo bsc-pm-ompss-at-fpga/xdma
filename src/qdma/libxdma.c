@@ -31,9 +31,6 @@
 
 #include "../libxdma.h"
 
-//#include "qdma_nl.h"
-//#include "qdmautils.h"
-
 #define QDMA_DEV_ID "02000"
 #define QDMA_Q_IDX  1
 #define QDMA_DEV_ID_ENV     "XDMA_QDMA_DEV"
@@ -64,35 +61,6 @@ static const char *getDeviceId(){
 }
 
 xdma_status xdmaOpen() {
-
-    //get device info in order to know which files we need to open
-    //struct xcmd_info cmd;
-    //memset(&cmd, 0, sizeof(struct xcmd_info));
-    //cmd.op = XNL_CMD_DEV_LIST;
-    //cmd.log_msg_dump = parse_dev_list;
-
-    //qdma_dev_list_dump(&cmd); //dumps a list of devices in a string
-
-    //FIXME assuming single qdma device
-    //Create queue
-    //  Creating single queue
-    //Assuming that the device has already a maximum number of queues defined
-    //    cmd.if_bdf = QDMA_DEV_ID;
-    //
-    //    //add a queue
-    //    cmd.op = XNL_CMD_Q_ADD;
-    //    cmd.req.qparm.sflags = 1 << QPARM_MODE;
-    //    cmd.req.qparm.flags |= XNL_F_QMODE_MM;
-    //    cmd.req.qparm.sflags |= 1 << QPARM_IDX;
-    //    cmd.req.qparm.idx = QDMA_Q_IDX;
-    //    cmd.req.qparm.num_q = 1;
-    //    cmd.req.qparm.sflags |= 1 << QPARM_DIR;
-    //    cmd.req.qparm.flags |= XNL_F_QDIR_BOTH;
-    //    qdma_q_add(&cmd);
-    //
-    //    cmd.op = XNL_CMD_Q_START;   //Reuse parameters
-    //    //start queue
-    //    qdma_q_start(&cmd);
 
     //Open files
     char devFileName[24];
