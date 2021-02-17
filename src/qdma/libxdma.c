@@ -72,7 +72,7 @@ xdma_status xdmaOpen() {
         perror("XDMA: ");
         if (errno == ENOENT){
             fprintf(stderr, "%s not found!\n", devFileName);
-            fprintf(stderr, "Note: XDMA_QDMA_DEVID env variable should contain\
+            fprintf(stderr, "Note: XDMA_QDMA_DEV env variable should contain\
                     the qdma device ID ");
         }
         return XDMA_ERROR;
