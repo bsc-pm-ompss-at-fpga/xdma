@@ -129,9 +129,9 @@ extern "C" {
      *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
      *       hang
      */
-    xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+    xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
             xdma_device dev, xdma_channel channel);
-    xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
+    xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, size_t offset,
             xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer);
 
     /*!
@@ -150,9 +150,9 @@ extern "C" {
      *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
      *       hang
      */
-    xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+    xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
             xdma_dir mode);
-    xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+    xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
             xdma_dir mode, xdma_transfer_handle *transfer);
 
     /*!

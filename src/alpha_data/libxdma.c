@@ -79,7 +79,7 @@ typedef struct {
     ADMXRC3_TICKET ticket, headerTicket;
     ADMXRC3_BUFFER_HANDLE hHeaderBuffer;
     alloc_info_t* alloc;
-    unsigned int offset;
+    size_t offset;
     size_t len;
     xdma_device device;
     //NOTE: Header can also be stored in the alloc_info_t struct. All transfers are performed sequentially with the use of locks
@@ -384,7 +384,7 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
 }
 
 static inline ADMXRC3_STATUS _xdmaStreamReadAsync(ADMXRC3_BUFFER_HANDLE hBuffer, void* buffer, ADMXRC3_BUFFER_HANDLE hHeaderBuffer,
-                                                  ADMXRC3_HANDLE hDevice, xdma_device dev, size_t len, unsigned int offset)
+                                                  ADMXRC3_HANDLE hDevice, xdma_device dev, size_t len, size_t offset)
 {
     pthread_mutex_lock(&_streamReadMutex);
     void* data = _queueTryPop(_devices[dev].queue);
@@ -453,7 +453,7 @@ static inline ADMXRC3_STATUS _xdmaStreamReadAsync(ADMXRC3_BUFFER_HANDLE hBuffer,
 }
 
 static inline ADMXRC3_STATUS _xdmaStreamRead(ADMXRC3_BUFFER_HANDLE hBuffer, void* buffer, ADMXRC3_BUFFER_HANDLE hHeaderBuffer,
-                                             ADMXRC3_HANDLE hDevice, xdma_device dev, size_t len, unsigned int offset)
+                                             ADMXRC3_HANDLE hDevice, xdma_device dev, size_t len, size_t offset)
 {
     ADMXRC3_STATUS status;
     do {
@@ -463,7 +463,7 @@ static inline ADMXRC3_STATUS _xdmaStreamRead(ADMXRC3_BUFFER_HANDLE hBuffer, void
     return status;
 }
 
-static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_device ignored, xdma_channel channel, bool block, xdma_transfer_handle *transfer)
 {
     ADMXRC3_TICKET* ticket, *headerTicket;
@@ -582,18 +582,18 @@ static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsign
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
                        xdma_device dev, xdma_channel channel)
 {
     return _xdmaStream(buffer, len, offset, dev, channel, 1 /*block*/, NULL);
 }
 
-xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, size_t offset,
                             xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer) {
     return _xdmaStream(buffer, len, offset, dev, channel, 0 /*block*/, transfer);
 }
 
-static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
                 xdma_dir mode, bool block, xdma_transfer_handle *transfer)
 {
     ADMXRC3_TICKET* ticket;
@@ -693,14 +693,14 @@ static inline xdma_status _xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t 
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode)
 
 {
     return _xdmaMemcpy(usr, buffer, len, offset, mode, 1 /*block*/, NULL /*xdma_transfer_handle*/);
 }
 
-xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode, xdma_transfer_handle *transfer)
 
 {
@@ -716,7 +716,7 @@ static inline xdma_status _xdmaFinishTransfer(xdma_transfer_handle transfer, boo
         ADMXRC3_BUFFER_HANDLE hBuffer = _transfers[transfer].alloc->hBuffer;
         ADMXRC3_BUFFER_HANDLE hHeaderBuffer = _transfers[transfer].hHeaderBuffer;
         void* usrPtr = _transfers[transfer].alloc->usrPtr;
-        unsigned int offset = _transfers[transfer].offset;
+        size_t offset = _transfers[transfer].offset;
         size_t len = _transfers[transfer].len;
         xdma_device dev = _transfers[transfer].device;
 

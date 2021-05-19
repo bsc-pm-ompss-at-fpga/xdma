@@ -140,12 +140,12 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
     return XDMA_SUCCESS;    //Do nothing
 }
 
-xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_device dev, xdma_channel channel) {
     return XDMA_ENOSYS;
 }
 
-xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer) {
     return XDMA_ENOSYS;
 }
@@ -166,7 +166,7 @@ xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int off
  *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
  *       hang
  */
-xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode) {
     ssize_t tx;
     off_t seekOff;
@@ -196,7 +196,7 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
 
 }
 
-xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode, xdma_transfer_handle *transfer) {
     *transfer = 0;
     return xdmaMemcpy(usr, buffer, len, offset, mode);
