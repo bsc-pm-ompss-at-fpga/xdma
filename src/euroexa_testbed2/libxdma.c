@@ -27,9 +27,10 @@
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
-#define DEV_MEM_SIZE        0x400000000 ///<Device memory (16GB)
+#define DEV_MEM_SIZE        0x600000000 ///<Device memory (24GB)
 #define DEV_BASE_ADDR       0x2000000000
 #define DEV_ALIGN           (512/8)
+#define DEV_MEM_SIZE_ENV    "XDMA_DEV_MEM_SIZE"
 
 #include "ompss_fpga.h"
 
@@ -77,6 +78,15 @@ static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction);
 typedef enum {
     ALLOC_HOST, ALLOC_DEVICE
 } alloc_type_t;
+
+// Get dev mem size from env variable or use the default
+static const size_t getDeviceMemSize(){
+    const char* devMemSize = getenv(DEV_MEM_SIZE_ENV);
+    if (!devMemSize)
+        return DEV_MEM_SIZE;
+    else
+        return devMemSize;
+}
 
 // Internal library representation of an alloc
 typedef struct {
@@ -307,7 +317,7 @@ xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len) {
     pthread_mutex_lock(&_allocateMutex);
     nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
     //adjust size so we always get aligned addresses
-    if (_curDevMemPtr + nlen > _devMem + DEV_MEM_SIZE) {
+    if (_curDevMemPtr + nlen > _devMem + getDeviceMemSize()) {
         pthread_mutex_unlock(&_allocateMutex);
         return XDMA_ENOMEM;
     }
@@ -647,7 +657,7 @@ xdma_status xdmaInitMem() {
         goto dev_mem_open_error;
     }
 
-    _devMem = (uintptr_t)mmap(NULL, DEV_MEM_SIZE, PROT_READ | PROT_WRITE,
+    _devMem = (uintptr_t)mmap(NULL, getDeviceMemSize(), PROT_READ | PROT_WRITE,
             MAP_SHARED, _dev_mem_fd, 0);
     if ((void *)_devMem == MAP_FAILED) {
         perror("Failed to map device memory");

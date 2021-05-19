@@ -31,12 +31,13 @@
 
 #include "../libxdma.h"
 
-#define QDMA_DEV_ID "02000"
-#define QDMA_Q_IDX  1
-#define QDMA_DEV_ID_ENV     "XDMA_QDMA_DEV"
+#define QDMA_DEV_ID      "02000"
+#define QDMA_Q_IDX       1
+#define QDMA_DEV_ID_ENV  "XDMA_QDMA_DEV"
 
-#define DEV_ALIGN   (512/8) //Buses are 512b wide
-#define DEV_MEM_SIZE        0x400000000 ///<Device memory (16GB)
+#define DEV_ALIGN         (512/8) //Buses are 512b wide
+#define DEV_MEM_SIZE      0x800000000 ///<Device memory (32GB)
+#define DEV_MEM_SIZE_ENV  "XDMA_DEV_MEM_SIZE"
 
 int _qdmaFd;
 
@@ -51,7 +52,16 @@ static void parse_dev_list(const char *devList) {
     //printf("%s\n", devList);
 }
 
-/// Get qdma device id from env variable or use the default
+// Get dev mem size from env variable or use the default
+static const size_t getDeviceMemSize(){
+    const char* devMemSize = getenv(DEV_MEM_SIZE_ENV);
+    if (!devMemSize)
+        return DEV_MEM_SIZE;
+    else
+        return devMemSize;
+}
+
+// Get qdma device id from env variable or use the default
 static const char *getDeviceId(){
     const char* devId = getenv(QDMA_DEV_ID_ENV);
     if (!devId)
@@ -123,7 +133,7 @@ xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len) {
     pthread_mutex_lock(&_allocateMutex);
     nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
     //adjust size so we always get aligned addresses
-    if (_curDevMemPtr + nlen > DEV_MEM_SIZE) {  //_curDevMemPtr starts at 0
+    if (_curDevMemPtr + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
         pthread_mutex_unlock(&_allocateMutex);
         return XDMA_ENOMEM;
     }
