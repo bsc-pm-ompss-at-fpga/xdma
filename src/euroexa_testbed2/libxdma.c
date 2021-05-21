@@ -27,9 +27,10 @@
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
-#define DEV_MEM_SIZE        0x400000000 ///<Device memory (16GB)
+#define DEV_MEM_SIZE        0x600000000 ///<Device memory (24GB)
 #define DEV_BASE_ADDR       0x2000000000
 #define DEV_ALIGN           (512/8)
+#define DEV_MEM_SIZE_ENV    "XDMA_DEV_MEM_SIZE"
 
 #include "ompss_fpga.h"
 
@@ -77,6 +78,15 @@ static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction);
 typedef enum {
     ALLOC_HOST, ALLOC_DEVICE
 } alloc_type_t;
+
+// Get dev mem size from env variable or use the default
+static const size_t getDeviceMemSize(){
+    const char* devMemSize = getenv(DEV_MEM_SIZE_ENV);
+    if (!devMemSize)
+        return DEV_MEM_SIZE;
+    else
+        return devMemSize;
+}
 
 // Internal library representation of an alloc
 typedef struct {
@@ -307,7 +317,7 @@ xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len) {
     pthread_mutex_lock(&_allocateMutex);
     nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
     //adjust size so we always get aligned addresses
-    if (_curDevMemPtr + nlen > _devMem + DEV_MEM_SIZE) {
+    if (_curDevMemPtr + nlen > _devMem + getDeviceMemSize()) {
         pthread_mutex_unlock(&_allocateMutex);
         return XDMA_ENOMEM;
     }
@@ -355,7 +365,7 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
     return ret;
 }
 
-static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_device dev, xdma_channel ch, bool block, xdma_transfer_handle *transfer)
 {
     struct xdma_chan_cfg *channel = (struct xdma_chan_cfg*)ch;
@@ -409,20 +419,20 @@ static inline xdma_status _xdmaStream(xdma_buf_handle buffer, size_t len, unsign
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
             xdma_device dev, xdma_channel channel)
 {
     return _xdmaStream(buffer, len, offset, dev, channel, 1 /*block*/, NULL /*xdma_transfer_handle*/);
 }
 
-xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer)
 {
     return _xdmaStream(buffer, len, offset, dev, channel, 0 /*block*/, transfer);
 }
 
 #define USE_CDMA
-xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned int offset,
+xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode)
 {
 #ifdef USE_CDMA
@@ -444,7 +454,7 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, unsigned i
 
 
 xdma_status xdmaMemcpyAsyncChunk(void *usr, xdma_buf_handle buffer, size_t len,
-        unsigned int offset, xdma_dir mode, xdma_transfer_handle *transfer)
+        size_t offset, xdma_dir mode, xdma_transfer_handle *transfer)
 {
 //    *transfer = (xdma_transfer_handle)NULL;
 //    return xdmaMemcpy(usr, buffer, len, offset, mode);
@@ -496,7 +506,7 @@ xdma_status xdmaMemcpyAsyncChunk(void *usr, xdma_buf_handle buffer, size_t len,
 }
 
 xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
-        unsigned int offset, xdma_dir mode, xdma_transfer_handle *transfer) {
+        size_t offset, xdma_dir mode, xdma_transfer_handle *transfer) {
     int rem = len;
     int transferred = 0;
     xdma_transfer_handle tmpHandle = 0;
@@ -647,7 +657,7 @@ xdma_status xdmaInitMem() {
         goto dev_mem_open_error;
     }
 
-    _devMem = (uintptr_t)mmap(NULL, DEV_MEM_SIZE, PROT_READ | PROT_WRITE,
+    _devMem = (uintptr_t)mmap(NULL, getDeviceMemSize(), PROT_READ | PROT_WRITE,
             MAP_SHARED, _dev_mem_fd, 0);
     if ((void *)_devMem == MAP_FAILED) {
         perror("Failed to map device memory");
