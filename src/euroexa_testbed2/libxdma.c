@@ -85,7 +85,7 @@ static const size_t getDeviceMemSize(){
     if (!devMemSize)
         return DEV_MEM_SIZE;
     else
-        return devMemSize;
+        return (size_t) strtoull(devMemSize, NULL, 10);
 }
 
 // Internal library representation of an alloc
