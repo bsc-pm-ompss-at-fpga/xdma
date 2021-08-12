@@ -1,4 +1,4 @@
-CC = gcc
+CC = ${CROSS_COMPILE}gcc
 LDFLAGS := -L$(ALPHADATA_SDK)/lib -ladmxrc3 $(LDFLAGS)
 CFLAGS := -c -Wall -Werror -std=c99 -g
 INCLUDES := -I. -I$(ALPHADATA_SDK)/include
