@@ -1,4 +1,4 @@
-CC=gcc
+CC = ${CROSS_COMPILE}gcc
 
 LDFLAGS_ = $(LDFLAGS)
 
