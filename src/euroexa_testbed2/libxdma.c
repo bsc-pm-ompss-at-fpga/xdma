@@ -74,6 +74,7 @@ static int _open_cnt = 0;
 
 static int getDeviceInfo(int deviceId, struct xdma_dev *devInfo);
 static xdma_status xdmaOpenChannel(xdma_device device, xdma_dir direction);
+static inline xdma_status _xdmaWaitTransferInternal(xdma_transfer_handle *transfer);
 
 typedef enum {
     ALLOC_HOST, ALLOC_DEVICE
@@ -437,8 +438,10 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t off
 {
 #ifdef USE_CDMA
     xdma_transfer_handle handle;
+    //pthread_mutex_lock(&_copyMutex);
     xdmaMemcpyAsync(usr, buffer, len, offset, mode, &handle);
     xdmaWaitTransfer(&handle);
+    //pthread_mutex_unlock(&_copyMutex);
     //TODO error management
     return XDMA_SUCCESS;
 #else
@@ -514,7 +517,7 @@ xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
     pthread_mutex_lock(&_copyMutex);
     while (transferred < len) {
         int chunkSize = rem < MAX_DMA_TRANSFER_SIZE ? rem : MAX_DMA_TRANSFER_SIZE;
-        ret = xdmaWaitTransfer(&tmpHandle);  //Wait for previous transfer to finish
+        ret = _xdmaWaitTransferInternal(&tmpHandle);  //Wait for previous transfer to finish
         if (ret != XDMA_SUCCESS) break;
         xdmaMemcpyAsyncChunk(usr + transferred, buffer, chunkSize, offset + transferred, mode, &tmpHandle);
         if (ret != XDMA_SUCCESS) break;
@@ -580,7 +583,7 @@ xdma_status xdmaTestTransfer(xdma_transfer_handle *transfer){
     return ret;
 }
 
-xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer){
+static inline xdma_status _xdmaWaitTransferInternal(xdma_transfer_handle *transfer) {
     xdma_status ret = _xdmaFinishTransfer(*transfer, 1 /*block*/);
     if (ret == XDMA_SUCCESS || ret == XDMA_PENDING || ret == XDMA_ERROR) {
         if (ret == XDMA_PENDING) {
@@ -588,6 +591,14 @@ xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer){
         }
         _xdmaReleaseTransfer(transfer);
     }
+    return ret;
+}
+
+xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer){
+    xdma_status ret;
+    //pthread_mutex_lock(&_copyMutex);
+    ret = _xdmaWaitTransferInternal(transfer);
+    //pthread_mutex_unlock(&_copyMutex);
     return ret;
 }
 
