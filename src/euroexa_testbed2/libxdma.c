@@ -27,7 +27,7 @@
 #define MAP_SIZE  (33554432)
 #define FILESIZE (MAP_SIZE * sizeof(uint8_t))
 
-#define DEV_MEM_SIZE        0x600000000 ///<Device memory (24GB)
+#define DEV_MEM_SIZE        0xc00000000 ///<Device memory (48GB)
 #define DEV_BASE_ADDR       0x2000000000
 #define DEV_ALIGN           (512/8)
 #define DEV_MEM_SIZE_ENV    "XDMA_DEV_MEM_SIZE"
