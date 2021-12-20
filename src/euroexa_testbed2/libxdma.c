@@ -510,7 +510,7 @@ xdma_status xdmaMemcpyAsyncChunk(void *usr, xdma_buf_handle buffer, size_t len,
 
 xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len,
         size_t offset, xdma_dir mode, xdma_transfer_handle *transfer) {
-    int rem = len;
+    size_t rem = len;
     int transferred = 0;
     xdma_transfer_handle tmpHandle = 0;
     xdma_status ret;
