@@ -151,6 +151,9 @@ xdma_status xdmaClose() {
 xdma_status xdmaGetNumDevices(int *numDevices){
 
     if (ioctl(_fd, XDMA_GET_NUM_DEVICES, numDevices) < 0) {
+        if (errno == ENOTTY) {
+            return XDMA_ENOSYS;
+        }
         perror("Error ioctl getting device num");
         return XDMA_ERROR;
     }
