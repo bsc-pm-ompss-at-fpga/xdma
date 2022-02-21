@@ -108,14 +108,17 @@ xdma_status xdmaOpen() {
 
     //initialize devices
     int numDevices;
-    xdmaGetNumDevices(&numDevices);
-    xdma_device *devices;
-    devices = (xdma_device*)alloca(numDevices*sizeof(xdma_device));
-    xdmaGetDevices(numDevices, devices, NULL);
-    for (int i=0; i<numDevices; i++) {
-        //need te run channel configuration to initialize the channel table
-        xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE);
-        xdmaOpenChannel(devices[i], XDMA_TO_DEVICE);
+    xdma_status status;
+    status = xdmaGetNumDevices(&numDevices);
+    if (status == XDMA_SUCCESS) {
+        xdma_device *devices;
+        devices = (xdma_device*)alloca(numDevices*sizeof(xdma_device));
+        xdmaGetDevices(numDevices, devices, NULL);
+        for (int i=0; i<numDevices; i++) {
+            //need te run channel configuration to initialize the channel table
+            xdmaOpenChannel(devices[i], XDMA_FROM_DEVICE);
+            xdmaOpenChannel(devices[i], XDMA_TO_DEVICE);
+        }
     }
 
     return XDMA_SUCCESS;
