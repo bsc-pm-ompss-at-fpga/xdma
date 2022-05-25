@@ -87,9 +87,15 @@ xdma_status xdmaOpen() {
         }
         return XDMA_ERROR;
     }
-    xdmaInitMem();
+    xdma_status memStatus;
+    memStatus = xdmaInitMem();
+    if (memStatus != XDMA_SUCCESS) {
+        fprintf(stderr, "Could not initialize device memory\n");
+        return XDMA_ERROR;
+    }
 
     //TODO: Cleanup in case of error
+    return XDMA_SUCCESS;
 
 }
 
@@ -98,6 +104,7 @@ xdma_status xdmaClose() {
     //close queue files
     //stop queues
     //delete queues
+    return XDMA_SUCCESS;
 }
 
 xdma_status xdmaGetNumDevices(int *numDevices) {
@@ -275,10 +282,12 @@ uint64_t xdmaGetInstrumentationTimerAddr();
  */
 xdma_status xdmaInitMem() {
     //Initialize dummy allocator
+    //pthread_mutex_init always returns success
     pthread_mutex_init(&_allocateMutex, NULL);
     pthread_mutex_init(&_copyMutex, NULL);
     _curDevMemPtr = 0;
 
+    return XDMA_SUCCESS;
 }
 
 /*!
