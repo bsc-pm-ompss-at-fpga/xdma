@@ -41,7 +41,6 @@
 
 int _qdmaFd;
 
-static uintptr_t _devMem;
 static uintptr_t _curDevMemPtr;
 
 static pthread_mutex_t _allocateMutex;
@@ -53,7 +52,7 @@ static void parse_dev_list(const char *devList) {
 }
 
 // Get dev mem size from env variable or use the default
-static const size_t getDeviceMemSize(){
+static size_t getDeviceMemSize(){
     const char* devMemSize = getenv(DEV_MEM_SIZE_ENV);
     if (!devMemSize)
         return DEV_MEM_SIZE;
@@ -70,8 +69,7 @@ static const char *getDeviceId(){
         return devId;
 }
 
-xdma_status xdmaOpen() {
-
+xdma_status xdmaInit() {
     //Open files
     char devFileName[24];
     const char* devId = getDeviceId();
@@ -87,53 +85,36 @@ xdma_status xdmaOpen() {
         }
         return XDMA_ERROR;
     }
-    xdma_status memStatus;
-    memStatus = xdmaInitMem();
-    if (memStatus != XDMA_SUCCESS) {
-        fprintf(stderr, "Could not initialize device memory\n");
-        return XDMA_ERROR;
-    }
 
-    //TODO: Cleanup in case of error
+    //Initialize dummy allocator
+    pthread_mutex_init(&_allocateMutex, NULL);
+    pthread_mutex_init(&_copyMutex, NULL);
+    _curDevMemPtr = 0;
+
     return XDMA_SUCCESS;
-
 }
 
-xdma_status xdmaClose() {
-
+xdma_status xdmaFini() {
     //close queue files
     //stop queues
     //delete queues
+    if (_qdmaFd > 0) {
+        close(_qdmaFd);
+    }
     return XDMA_SUCCESS;
 }
 
 xdma_status xdmaGetNumDevices(int *numDevices) {
-
-    //Only used for stream devices
-    //TODO: Return the number of devices if stream support is enabled
-    *numDevices = 0;
+    *numDevices = 1;
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaGetDevices(int entries, xdma_device *devices, int *devs) {
-    //Only used for streams
-    *devs = 0;
-
-    //TODO: Return the number of devices if stream is enabled
-    return XDMA_SUCCESS;
-}
-
-xdma_status xdmaGetDeviceChannel(xdma_device device, xdma_dir direction, xdma_channel *channel) {
-    //No stream support
-    return XDMA_ENOSYS;
-}
-
-xdma_status xdmaAllocateHost(void **buffer, xdma_buf_handle *handle, size_t len) {
+xdma_status xdmaAllocateHost(int devId, void **buffer, xdma_buf_handle *handle, size_t len) {
     //QDMA does not support memory mapped device buffers
     return XDMA_ENOSYS;
 }
 
-xdma_status xdmaAllocate(xdma_buf_handle *handle, size_t len) {
+xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
     void *ptr;
     size_t nlen;
 
@@ -157,32 +138,6 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
     return XDMA_SUCCESS;    //Do nothing
 }
 
-xdma_status xdmaStream(xdma_buf_handle buffer, size_t len, size_t offset,
-        xdma_device dev, xdma_channel channel) {
-    return XDMA_ENOSYS;
-}
-
-xdma_status xdmaStreamAsync(xdma_buf_handle buffer, size_t len, size_t offset,
-        xdma_device dev, xdma_channel channel, xdma_transfer_handle *transfer) {
-    return XDMA_ENOSYS;
-}
-
-/*!
- * Copy to/from a buffer from/to userspace memory
- *
- * \param[in] usr       Pointer to userspace memory
- * \param[in] buffer    Buffer handle
- * \param[in] len       Length of the data movement (in bytes)
- * \param[in] offset    Offset to apply in the buffer
- * \param[in] mode      Directionality of the data movement
- *                       - XDMA_TO_DEVICE:   buffer[offset .. offset+len] = usr[0 .. len]
- *                       - XDMA_FROM_DEVICE: usr[0 .. len] = buffer[offset .. offset+len]
- * \param[out] transfer Pointer to the variable that will hold the transfer handle.
- *                      (Only available in async version)
- * NOTE: An async operation must be synchronized at some point using xdmaTestTransfer
- *       or xdmaWaitTransfer. Otherwise, the execution may have memory leaks or even
- *       hang
- */
 xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode) {
     ssize_t tx;
@@ -210,7 +165,6 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t off
     } else {
         return XDMA_SUCCESS;
     }
-
 }
 
 xdma_status xdmaMemcpyAsync(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
@@ -232,69 +186,22 @@ xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *devAddre
     return XDMA_SUCCESS;
 }
 
-/*!
- * Initialize the support for HW instrumentation.
- * Note that the function will fail if the HW instrumentation support is not available in the loaded
- * bitstream.
- * \return  XDMA_SUCCESS  if the support is successfully initialized
- *          XDMA_EISINIT  if the support is already initialized
- *          XDMA_ERROR    otherwise
- */
-xdma_status xdmaInitHWInstrumentation();
-
-/*!
- * Finalize the support for HW instrumentation
- * \return  XDMA_SUCCESS  if the support is successfully finalized
- *          XDMA_ERROR    otherwise
- */
-xdma_status xdmaFiniHWInstrumentation();
-
-/*!
- * Get the internal device time (instrumentation timer)
- * \param[out] time Current timestamp in the device
- * \return          XDMA_SUCCESS if the time has been successfully set,
- *                  XDMA_ERROR otherwise
- */
-xdma_status xdmaGetDeviceTime(uint64_t *time);
-
-/*!
- * Check if the instrumentation is initialized and available
- * \return 1 if the instrumentation support has been sucessfully initialized,
- *         0 otherwise
- */
-int xdmaInstrumentationEnabled();
-
-/*!
- * Get the internal device address of the instrumentation timer
- * \return Address of the instrumentation times in the device,
- *         0 if any error happened
- */
-uint64_t xdmaGetInstrumentationTimerAddr();
-
-/*!
- * Initialize DMA memory subsystem
- * Any call to memory related functions such as xdmaAllocate
- * prior to memory initialization will fail.
- * \return  XDMA_SUCCESS    if memory subsystem was successfully initialized
- *          XDMA_EACCES     if user does not have permission to access memory node
- *          XDMA_ENOENT     if memory node does not exist
- *          XDMA_ERROR      in case of any other error
- */
-xdma_status xdmaInitMem() {
-    //Initialize dummy allocator
-    //pthread_mutex_init always returns success
-    pthread_mutex_init(&_allocateMutex, NULL);
-    pthread_mutex_init(&_copyMutex, NULL);
-    _curDevMemPtr = 0;
-
-    return XDMA_SUCCESS;
+xdma_status xdmaInitHWInstrumentation() {
+    return XDMA_ENOSYS;
 }
 
-/*!
- * Deinitialize the DMA memory subsystem
- * \return  XDMA_SUCCESS    on success
- *          XDMA_ERROR      otherwise
- */
-xdma_status xdmaFiniMem() {
-    return XDMA_SUCCESS;    //Do nothing
+xdma_status xdmaFiniHWInstrumentation() {
+    return XDMA_ENOSYS;
+}
+
+xdma_status xdmaGetDeviceTime(int devId, uint64_t *time) {
+    return XDMA_ENOSYS;
+}
+
+int xdmaInstrumentationEnabled() {
+    return 0;
+}
+
+uint64_t xdmaGetInstrumentationTimerAddr(int devId) {
+    return XDMA_ENOSYS;
 }
