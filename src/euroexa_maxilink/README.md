@@ -9,7 +9,7 @@
   1. Clone the repository or download the latest stable version.
     ```
     git clone https://gitlab.bsc.es/ompss-at-fpga/xdma.git
-    cd xdma/src/euroexa_testbed2
+    cd xdma/src/euroexa_maxilink
     ```
 
   2. Set environment variables.
