@@ -39,6 +39,8 @@
 #define DEV_MEM_SIZE      0x800000000 ///<Device memory (32GB)
 #define DEV_MEM_SIZE_ENV  "XDMA_DEV_MEM_SIZE"
 
+#define MAX_TRANSFER_SIZE  256*1024*1024
+
 int _qdmaFd;
 
 static uintptr_t _curDevMemPtr;
@@ -141,6 +143,7 @@ xdma_status xdmaFree(xdma_buf_handle handle) {
 xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
         xdma_dir mode) {
     ssize_t tx;
+    size_t transferred = 0, rem = len;
     off_t seekOff;
     off_t devOffset = (off_t)buffer + offset;
     pthread_mutex_lock(&_copyMutex);
@@ -151,15 +154,33 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t off
         return XDMA_ERROR;
     }
     if (mode == XDMA_TO_DEVICE) {
-        tx = write(_qdmaFd, usr, len);
+        while (transferred < len) {
+            int chunkSize = rem < MAX_TRANSFER_SIZE ? rem : MAX_TRANSFER_SIZE;
+            lseek(_qdmaFd, devOffset + transferred, SEEK_SET);
+            tx = write(_qdmaFd, usr + transferred, chunkSize);
+            rem -= tx;
+            transferred += tx;
+            if (tx < chunkSize) {
+                perror("XDMA memcpy chunk error (trying to continue)");
+            }
+        }
     } else if (mode == XDMA_FROM_DEVICE) {
-        tx = read(_qdmaFd, usr, len);
+        while (transferred < len) {
+            int chunkSize = rem < MAX_TRANSFER_SIZE ? rem : MAX_TRANSFER_SIZE;
+            lseek(_qdmaFd, devOffset + transferred, SEEK_SET);
+            tx = read(_qdmaFd, usr + transferred, chunkSize);
+            rem -= tx;
+            transferred += tx;
+            if (tx < chunkSize) {
+                perror("XDMA memcpy chunk error (trying to continue)");
+            }
+        }
     } else {
         pthread_mutex_unlock(&_copyMutex);
         return XDMA_ENOSYS; //Device to device transfers not yet implemented
     }
     pthread_mutex_unlock(&_copyMutex);
-    if (tx != len) {
+    if (transferred != len) {
         perror("XDMA memcpy error");
         return XDMA_ERROR;
     } else {
