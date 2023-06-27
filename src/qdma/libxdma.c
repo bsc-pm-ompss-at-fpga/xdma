@@ -39,7 +39,8 @@
 #define DEV_MEM_SIZE      0x800000000 ///<Device memory (32GB)
 #define DEV_MEM_SIZE_ENV  "XDMA_DEV_MEM_SIZE"
 
-#define MAX_TRANSFER_SIZE  256*1024*1024
+//For some reason, QDMA 5 from vivado 2022.2 fails when using larger chunks
+#define MAX_TRANSFER_SIZE  4096
 
 int _qdmaFd;
 
