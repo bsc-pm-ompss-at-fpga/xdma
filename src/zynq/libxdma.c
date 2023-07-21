@@ -198,46 +198,88 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t off
     alloc_info_t *info = (alloc_info_t *)buffer;
     xdma_status ret = XDMA_SUCCESS;
     if (mode == XDMA_TO_DEVICE) {
-        //memcpy(((unsigned char *)info->ptr) + offset, usr, len);
-        int i;
-        uint64_t *lsrc, *ldst;
-        lsrc = (uint64_t*)usr;
-        ldst = (uint64_t*)((unsigned char*)info->ptr + offset);
-        //do not allow unaligned transfers
-        if ((uintptr_t)ldst % sizeof(uint64_t)) {
-            return XDMA_ERROR;
+        void *src, *dst;
+        src = usr;
+        dst = ((unsigned char*)info->ptr + offset);
+
+        // long words for aligned accesses
+        // using these pointers as 64b casters for the original pointers
+        uint64_t **lsrc, **ldst;
+        lsrc = (uint64_t**)&src;
+        ldst = (uint64_t**)&dst;
+
+        // byte words for unaligned accesses
+        // using these pointers as 8b casters for the original pointers
+        uint8_t **bsrc, **bdst;
+        bsrc = (uint8_t**)&src;
+        bdst = (uint8_t**)&dst;
+
+        // prologue for unaligned accesses
+        // copy data byte by byte until buffer is aligned
+        while ((uintptr_t)dst % sizeof(uint64_t)) {
+            **bdst = **bsrc;
+            (*bsrc)++;
+            (*bdst)++;
+            len--;
         }
 
-        for (i=0; i<len/sizeof(uint64_t); i++) {
-            ldst[i] = lsrc[i];
+        // copy aligned data
+        while (len/sizeof(uint64_t)) {
+            **ldst = **lsrc;
+            (*ldst)++;
+            (*lsrc)++;
+            len -= sizeof(uint64_t);
         }
-        i *= sizeof(uint64_t);
-        char *src, *dst;
-        src = usr;
-        dst = info->ptr + offset;
-        for (; i<len; i++) {
-            dst[i] = src[i];
+
+        // epilogue for remaining unaligned accesses
+        // copy remaining len data byte by byte
+        while (len%sizeof(uint64_t)) {
+            **bdst = **bsrc;
+            (*bsrc)++;
+            (*bdst)++;
+            len--;
         }
     } else if (mode == XDMA_FROM_DEVICE) {
-        //memcpy(usr, ((unsigned char *)info->ptr) + offset, len);
-        int i;
-        uint64_t *lsrc, *ldst;
-        lsrc = (uint64_t*)((unsigned char*)info->ptr + offset);
-        ldst = (uint64_t*)usr;
-        //do not allow unaligned transfers
-        if ((uintptr_t)lsrc % sizeof(uint64_t)) {
-            return XDMA_ERROR;
+        void *src, *dst;
+        src = ((unsigned char*)info->ptr + offset);
+        dst = usr;
+
+        // long words for aligned accesses
+        // using these pointers as 64b casters for the original pointers
+        uint64_t **lsrc, **ldst;
+        lsrc = (uint64_t**)&src;
+        ldst = (uint64_t**)&dst;
+
+        // byte words for unaligned accesses
+        // using these pointers as 8b casters for the original pointers
+        uint8_t **bsrc, **bdst;
+        bsrc = (uint8_t**)&src;
+        bdst = (uint8_t**)&dst;
+
+        // prologue for unaligned accesses
+        // copy data byte by byte until buffer is aligned
+        while ((uintptr_t)src % sizeof(uint64_t)) {
+            **bdst = **bsrc;
+            (*bsrc)++;
+            (*bdst)++;
+            len--;
         }
 
-        for (i=0; i<len/sizeof(uint64_t); i++) {
-            ldst[i] = lsrc[i];
+        // copy aligned data
+        while (len/sizeof(uint64_t)) {
+            **ldst = **lsrc;
+            (*ldst)++;
+            (*lsrc)++;
+            len -= sizeof(uint64_t);
         }
-        i *= sizeof(uint64_t);
-        char *src, *dst;
-        src = info->ptr + offset;
-        dst = usr;
-        for (; i<len; i++) {
-            dst[i] = src[i];
+
+        // epilogue for remaining unaligned accesses
+        // copy len data byte by byte
+        while (len%sizeof(uint64_t)) {
+            **bdst = **bsrc;
+            (*bsrc)++;
+            (*bdst)++;
+            len--;
         }
     } else if (mode == XDMA_DEVICE_TO_DEVICE) {
         ret = XDMA_ENOSYS;
