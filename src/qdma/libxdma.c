@@ -31,7 +31,6 @@
 
 #include "../libxdma.h"
 
-#define QDMA_DEV_ID      "02000"
 #define QDMA_Q_IDX       1
 #define QDMA_DEV_ID_ENV  "XDMA_QDMA_DEV"
 
@@ -40,19 +39,23 @@
 #define DEV_MEM_SIZE_ENV  "XDMA_DEV_MEM_SIZE"
 
 //For some reason, QDMA 5 from vivado 2022.2 fails when using larger chunks
-#define MAX_TRANSFER_SIZE  4096
+#define MAX_TRANSFER_SIZE 1*1024*1024
+#define MAX_DEVICES 16
 
-int _qdmaFd;
+static int _ndevs = 0;
+static int _qdmaFd[MAX_DEVICES];
 
-static uintptr_t _curDevMemPtr;
+static uintptr_t _curDevMemPtr[MAX_DEVICES];
 
-static pthread_mutex_t _allocateMutex;
-static pthread_mutex_t _copyMutex;
+static pthread_mutex_t _allocateMutex[MAX_DEVICES];
+static pthread_mutex_t _copyMutex[MAX_DEVICES];
 
-static void parse_dev_list(const char *devList) {
-    //parse device list
-    //printf("%s\n", devList);
-}
+// Internal library representation of an alloc
+typedef struct {
+    int devId;
+    uint64_t devPtr;
+} alloc_info_t;
+
 
 // Get dev mem size from env variable or use the default
 static size_t getDeviceMemSize(){
@@ -63,52 +66,87 @@ static size_t getDeviceMemSize(){
         return (size_t) strtoull(devMemSize, NULL, 10);
 }
 
-// Get qdma device id from env variable or use the default
-static const char *getDeviceId(){
-    const char* devId = getenv(QDMA_DEV_ID_ENV);
-    if (!devId)
-        return QDMA_DEV_ID;
-    else
-        return devId;
+// Get qdma device id from env variable
+static const char *getDeviceList() {
+    const char* devIdList = getenv(QDMA_DEV_ID_ENV);
+    if (devIdList == NULL) {
+        fprintf(stderr, "[XDMA] Environment variable " QDMA_DEV_ID_ENV " not set, it should contain the QDMA device ID list\n");
+    }
+    return devIdList;
 }
 
 xdma_status xdmaInit() {
     //Open files
-    char devFileName[24];
-    const char* devId = getDeviceId();
-    sprintf(devFileName, "/dev/qdma%s-MM-%d", devId, QDMA_Q_IDX);
-
-    _qdmaFd = open(devFileName, O_RDWR);
-    if (_qdmaFd < 0) {
-        perror("XDMA: ");
-        if (errno == ENOENT){
-            fprintf(stderr, "%s not found!\n", devFileName);
-            fprintf(stderr, "Note: XDMA_QDMA_DEV env variable should contain\
-                    the qdma device ID ");
-        }
+    const char* devListEnv = getDeviceList();
+    if (devListEnv == NULL) {
         return XDMA_ERROR;
     }
+    int ndevs = 0;
+    _ndevs = 0;
+    char *devId;
+    char *devList = malloc(strlen(devListEnv)+1);
+    strcpy(devList, devListEnv);
+    devId = strtok(devList, " ");
+    while (devId != NULL) {
+        if (ndevs == MAX_DEVICES) {
+            fprintf(stderr, "Found too many devices\n");
+            goto init_maxdev_err;
+        }
 
-    //Initialize dummy allocator
-    pthread_mutex_init(&_allocateMutex, NULL);
-    pthread_mutex_init(&_copyMutex, NULL);
-    _curDevMemPtr = 0;
+        char devFileName[24];
+        sprintf(devFileName, "/dev/qdma%s-MM-%d", devId, QDMA_Q_IDX);
+
+        _qdmaFd[ndevs] = open(devFileName, O_RDWR);
+        if (_qdmaFd[ndevs] < 0) {
+            perror("XDMA open error");
+            if (errno == ENOENT) {
+                fprintf(stderr, "%s not found!\n", devFileName);
+            }
+            goto init_open_err;
+        }
+
+        fprintf(stderr, "[XDMA] Found device %s\n", devId);
+
+        ++ndevs;
+        devId = strtok(NULL, " ");
+    }
+    free(devList);
+
+    for (int i = 0; i < ndevs; ++i) {
+        //Initialize dummy allocator
+        pthread_mutex_init(&_allocateMutex[i], NULL);
+        pthread_mutex_init(&_copyMutex[i], NULL);
+        _curDevMemPtr[i] = 0;
+    }
+    _ndevs = ndevs;
 
     return XDMA_SUCCESS;
+
+init_maxdev_err:
+init_open_err:
+    for (int d = 0; d < ndevs; ++d)
+        close(_qdmaFd[d]);
+    free(devList);
+
+    return XDMA_ERROR;
 }
 
 xdma_status xdmaFini() {
     //close queue files
     //stop queues
     //delete queues
-    if (_qdmaFd > 0) {
-        close(_qdmaFd);
+    for (int i = 0; i < _ndevs; ++i) {
+        if (_qdmaFd[i] > 0) {
+            close(_qdmaFd[i]);
+        }
+        pthread_mutex_destroy(&_allocateMutex[i]);
+        pthread_mutex_destroy(&_copyMutex[i]);
     }
     return XDMA_SUCCESS;
 }
 
 xdma_status xdmaGetNumDevices(int *numDevices) {
-    *numDevices = 1;
+    *numDevices = _ndevs;
     return XDMA_SUCCESS;
 }
 
@@ -118,47 +156,57 @@ xdma_status xdmaAllocateHost(int devId, void **buffer, xdma_buf_handle *handle, 
 }
 
 xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
-    void *ptr;
+    uint64_t ptr;
     size_t nlen;
 
-    pthread_mutex_lock(&_allocateMutex);
+    pthread_mutex_lock(&_allocateMutex[devId]);
     nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
     //adjust size so we always get aligned addresses
-    if (_curDevMemPtr + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
-        pthread_mutex_unlock(&_allocateMutex);
+    if (_curDevMemPtr[devId] + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
+        pthread_mutex_unlock(&_allocateMutex[devId]);
         return XDMA_ENOMEM;
     }
-    ptr = (void*)_curDevMemPtr;
-    _curDevMemPtr += nlen;
-    pthread_mutex_unlock(&_allocateMutex);
+    ptr = _curDevMemPtr[devId];
+    _curDevMemPtr[devId] += nlen;
+    pthread_mutex_unlock(&_allocateMutex[devId]);
 
-    *handle = ptr;  //Directly store device pointer into handle
+    alloc_info_t* alloc_info = (alloc_info_t*)malloc(sizeof(alloc_info_t));
+    alloc_info->devPtr = ptr;
+    alloc_info->devId = devId;
+
+    *handle = alloc_info;  //Directly store device pointer into handle
 
     return XDMA_SUCCESS;
 }
 
 xdma_status xdmaFree(xdma_buf_handle handle) {
+    free((alloc_info_t*)handle);
     return XDMA_SUCCESS;    //Do nothing
 }
 
-xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t offset,
+xdma_status xdmaMemcpy(void *usr, xdma_buf_handle handle, size_t len, size_t offset,
         xdma_dir mode) {
     ssize_t tx;
     size_t transferred = 0, rem = len;
+    alloc_info_t* alloc_info = (alloc_info_t*)handle;
+
+    int devId = alloc_info->devId;
+    uint64_t buffer = alloc_info->devPtr;
+
     off_t seekOff;
     off_t devOffset = (off_t)buffer + offset;
-    pthread_mutex_lock(&_copyMutex);
-    seekOff = lseek(_qdmaFd, devOffset, SEEK_SET);
+    pthread_mutex_lock(&_copyMutex[devId]);
+    seekOff = lseek(_qdmaFd[devId], devOffset, SEEK_SET);
     if (seekOff != devOffset) {
         if (seekOff < 0) perror("XDMA dev offset:");
-        pthread_mutex_unlock(&_copyMutex);
+        pthread_mutex_unlock(&_copyMutex[devId]);
         return XDMA_ERROR;
     }
     if (mode == XDMA_TO_DEVICE) {
         while (transferred < len) {
             int chunkSize = rem < MAX_TRANSFER_SIZE ? rem : MAX_TRANSFER_SIZE;
-            lseek(_qdmaFd, devOffset + transferred, SEEK_SET);
-            tx = write(_qdmaFd, usr + transferred, chunkSize);
+            lseek(_qdmaFd[devId], devOffset + transferred, SEEK_SET);
+            tx = write(_qdmaFd[devId], usr + transferred, chunkSize);
             rem -= tx;
             transferred += tx;
             if (tx < chunkSize) {
@@ -168,8 +216,8 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t off
     } else if (mode == XDMA_FROM_DEVICE) {
         while (transferred < len) {
             int chunkSize = rem < MAX_TRANSFER_SIZE ? rem : MAX_TRANSFER_SIZE;
-            lseek(_qdmaFd, devOffset + transferred, SEEK_SET);
-            tx = read(_qdmaFd, usr + transferred, chunkSize);
+            lseek(_qdmaFd[devId], devOffset + transferred, SEEK_SET);
+            tx = read(_qdmaFd[devId], usr + transferred, chunkSize);
             rem -= tx;
             transferred += tx;
             if (tx < chunkSize) {
@@ -177,10 +225,10 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle buffer, size_t len, size_t off
             }
         }
     } else {
-        pthread_mutex_unlock(&_copyMutex);
+        pthread_mutex_unlock(&_copyMutex[devId]);
         return XDMA_ENOSYS; //Device to device transfers not yet implemented
     }
-    pthread_mutex_unlock(&_copyMutex);
+    pthread_mutex_unlock(&_copyMutex[devId]);
     if (transferred != len) {
         perror("XDMA memcpy error");
         return XDMA_ERROR;
@@ -203,8 +251,8 @@ xdma_status xdmaWaitTransfer(xdma_transfer_handle *transfer) {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaGetDeviceAddress(xdma_buf_handle buffer, unsigned long *devAddress) {
-    *devAddress = (unsigned long)buffer; //a buffer handle is just the device pointer
+xdma_status xdmaGetDeviceAddress(xdma_buf_handle handle, unsigned long *devAddress) {
+    *devAddress = (unsigned long)((alloc_info_t*)handle)->devPtr;
     return XDMA_SUCCESS;
 }
 
