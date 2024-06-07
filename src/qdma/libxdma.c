@@ -22,12 +22,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include "../util/ticket-lock.h"
 
 #include "../libxdma.h"
 
@@ -47,8 +47,8 @@ static int _qdmaFd[MAX_DEVICES];
 
 static uintptr_t _curDevMemPtr[MAX_DEVICES];
 
-static pthread_mutex_t _allocateMutex[MAX_DEVICES];
-static pthread_mutex_t _copyMutex[MAX_DEVICES];
+static ticketLock_t _allocateMutex[MAX_DEVICES];
+static ticketLock_t _copyMutex[MAX_DEVICES];
 
 // Internal library representation of an alloc
 typedef struct {
@@ -114,8 +114,8 @@ xdma_status xdmaInit() {
 
     for (int i = 0; i < ndevs; ++i) {
         //Initialize dummy allocator
-        pthread_mutex_init(&_allocateMutex[i], NULL);
-        pthread_mutex_init(&_copyMutex[i], NULL);
+        ticketLockInit(&_allocateMutex[i]);
+        ticketLockInit(&_copyMutex[i]);
         _curDevMemPtr[i] = 0;
     }
     _ndevs = ndevs;
@@ -139,8 +139,6 @@ xdma_status xdmaFini() {
         if (_qdmaFd[i] > 0) {
             close(_qdmaFd[i]);
         }
-        pthread_mutex_destroy(&_allocateMutex[i]);
-        pthread_mutex_destroy(&_copyMutex[i]);
     }
     return XDMA_SUCCESS;
 }
@@ -159,16 +157,16 @@ xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
     uint64_t ptr;
     size_t nlen;
 
-    pthread_mutex_lock(&_allocateMutex[devId]);
+    ticketLockAcquire(&_allocateMutex[devId]);
     nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
     //adjust size so we always get aligned addresses
     if (_curDevMemPtr[devId] + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
-        pthread_mutex_unlock(&_allocateMutex[devId]);
+        ticketLockRelease(&_allocateMutex[devId]);
         return XDMA_ENOMEM;
     }
     ptr = _curDevMemPtr[devId];
     _curDevMemPtr[devId] += nlen;
-    pthread_mutex_unlock(&_allocateMutex[devId]);
+    ticketLockRelease(&_allocateMutex[devId]);
 
     alloc_info_t* alloc_info = (alloc_info_t*)malloc(sizeof(alloc_info_t));
     alloc_info->devPtr = ptr;
@@ -195,11 +193,11 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle handle, size_t len, size_t off
 
     off_t seekOff;
     off_t devOffset = (off_t)buffer + offset;
-    pthread_mutex_lock(&_copyMutex[devId]);
+    ticketLockAcquire(&_copyMutex[devId]);
     seekOff = lseek(_qdmaFd[devId], devOffset, SEEK_SET);
     if (seekOff != devOffset) {
         if (seekOff < 0) perror("XDMA dev offset:");
-        pthread_mutex_unlock(&_copyMutex[devId]);
+        ticketLockRelease(&_copyMutex[devId]);
         return XDMA_ERROR;
     }
     if (mode == XDMA_TO_DEVICE) {
@@ -225,10 +223,10 @@ xdma_status xdmaMemcpy(void *usr, xdma_buf_handle handle, size_t len, size_t off
             }
         }
     } else {
-        pthread_mutex_unlock(&_copyMutex[devId]);
+        ticketLockRelease(&_copyMutex[devId]);
         return XDMA_ENOSYS; //Device to device transfers not yet implemented
     }
-    pthread_mutex_unlock(&_copyMutex[devId]);
+    ticketLockRelease(&_copyMutex[devId]);
     if (transferred != len) {
         perror("XDMA memcpy error");
         return XDMA_ERROR;
