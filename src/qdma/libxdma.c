@@ -47,7 +47,6 @@ static int _qdmaFd[MAX_DEVICES];
 
 static uintptr_t _curDevMemPtr[MAX_DEVICES];
 
-static ticketLock_t _allocateMutex[MAX_DEVICES];
 static ticketLock_t _copyMutex[MAX_DEVICES];
 
 // Internal library representation of an alloc
@@ -114,7 +113,6 @@ xdma_status xdmaInit() {
 
     for (int i = 0; i < ndevs; ++i) {
         //Initialize dummy allocator
-        ticketLockInit(&_allocateMutex[i]);
         ticketLockInit(&_copyMutex[i]);
         _curDevMemPtr[i] = 0;
     }
@@ -154,19 +152,12 @@ xdma_status xdmaAllocateHost(int devId, void **buffer, xdma_buf_handle *handle, 
 }
 
 xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
-    uint64_t ptr;
-    size_t nlen;
-
-    ticketLockAcquire(&_allocateMutex[devId]);
-    nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
+    uint64_t nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
+    uint64_t ptr = __atomic_fetch_add(_curDevMemPtr + devId, nlen, __ATOMIC_RELAXED);
     //adjust size so we always get aligned addresses
-    if (_curDevMemPtr[devId] + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
-        ticketLockRelease(&_allocateMutex[devId]);
+    if (ptr + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
         return XDMA_ENOMEM;
     }
-    ptr = _curDevMemPtr[devId];
-    _curDevMemPtr[devId] += nlen;
-    ticketLockRelease(&_allocateMutex[devId]);
 
     alloc_info_t* alloc_info = (alloc_info_t*)malloc(sizeof(alloc_info_t));
     alloc_info->devPtr = ptr;

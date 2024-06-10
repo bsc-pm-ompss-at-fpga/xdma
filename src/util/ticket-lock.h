@@ -48,7 +48,7 @@ void ticketLockInit(ticketLock_t *const l)
  */
 void ticketLockAcquire(ticketLock_t *const l)
 {
-    unsigned long const mine = __sync_fetch_and_add(&l->next, 1);
+    unsigned long const mine = __atomic_fetch_add(&l->next, 1, __ATOMIC_RELAXED);
     while (1) {
         if (mine == l->current) break;
     }
