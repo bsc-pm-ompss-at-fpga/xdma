@@ -35,7 +35,7 @@ typedef struct {
 /**
  * Initialize the lock
  */
-void ticketLockInit(ticketLock_t *const l)
+static void ticketLockInit(ticketLock_t *const l)
 {
     if (l == NULL) return;
 
@@ -46,7 +46,7 @@ void ticketLockInit(ticketLock_t *const l)
 /**
  * Acquire the lock
  */
-void ticketLockAcquire(ticketLock_t *const l)
+static void ticketLockAcquire(ticketLock_t *const l)
 {
     unsigned long const mine = __atomic_fetch_add(&l->next, 1, __ATOMIC_RELAXED);
     while (1) {
@@ -57,12 +57,12 @@ void ticketLockAcquire(ticketLock_t *const l)
 /**
  * Release the lock
  */
-void ticketLockRelease(ticketLock_t *const l) { l->current++; }
+static void ticketLockRelease(ticketLock_t *const l) { l->current++; }
 
 /**
  * Finalize the lock
  */
-void ticketLockFini(ticketLock_t *const l) {}
+static void ticketLockFini(ticketLock_t *const l) {}
 
 #ifdef __cplusplus
 }
