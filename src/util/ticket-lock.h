@@ -59,11 +59,6 @@ static void ticketLockAcquire(ticketLock_t *const l)
  */
 static void ticketLockRelease(ticketLock_t *const l) { l->current++; }
 
-/**
- * Finalize the lock
- */
-static void ticketLockFini(ticketLock_t *const l) {}
-
 #ifdef __cplusplus
 }
 #endif

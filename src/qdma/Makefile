@@ -14,7 +14,7 @@ libxdma.so: libxdma.o
 	$(CC) -g -shared -Wl,-soname,libxdma.so -o libxdma.so libxdma.o $(LDFLAGS_)
 
 libxdma.o: libxdma.c
-	$(CC) $(CFLAGS) libxdma.c -pthread -fPIC -c -g -O3
+	$(CC) $(CFLAGS) libxdma.c -pthread -fPIC -c -g -O3 -Wall
 
 .PHONY: ../libxdma_version.h
 libxdma_version.h: ../libxdma_version_template.h
