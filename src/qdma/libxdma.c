@@ -38,8 +38,6 @@
 #define QDMA_DEV_ID_ENV  "XDMA_QDMA_DEV"
 
 #define DEV_ALIGN         (512/8) //Buses are 512b wide
-#define DEV_MEM_SIZE      0x800000000 ///<Device memory (32GB)
-#define DEV_MEM_SIZE_ENV  "XDMA_DEV_MEM_SIZE"
 
 // With big transfers, the network doesn't send everything in a single call
 #define MAX_NETWORK_TRANSFER_SIZE 536870912 //512MB
@@ -62,6 +60,7 @@ static int _nodeid2port[MAX_NODES];
 static struct in_addr _nodeid2ip[MAX_NODES];
 
 static uintptr_t _curDevMemPtr[MAX_CLUSTER];
+static uint64_t _memorySizes[MAX_CLUSTER];
 
 static ticketLock_t _copyMutexD[MAX_DEVICES];
 static ticketLock_t _copyMutexN[MAX_NODES];
@@ -72,15 +71,6 @@ typedef struct {
     uint64_t devPtr;
 } alloc_info_t;
 
-
-// Get dev mem size from env variable or use the default
-static size_t getDeviceMemSize(){
-    const char* devMemSize = getenv(DEV_MEM_SIZE_ENV);
-    if (!devMemSize)
-        return DEV_MEM_SIZE;
-    else
-        return (size_t) strtoull(devMemSize, NULL, 10);
-}
 
 // Get qdma device id from env variable
 static const char *getDeviceList() {
@@ -244,10 +234,16 @@ xdma_status xdmaInit() {
     for (int i = 0; i < ndevs; ++i) {
         //Initialize dummy allocator
         ticketLockInit(&_copyMutexD[i]);
-        if (_nnodes == 0) _curDevMemPtr[i] = 0;
+        if (_nnodes == 0) {
+            _curDevMemPtr[i] = 0;
+            _memorySizes[i] = 0;
+        }
     }
     for (int i = 0; i < _nnodes; ++i) ticketLockInit(&_copyMutexN[i]);
-    for (int i = 0; i < _cluster_size; ++i) _curDevMemPtr[i] = 0;
+    for (int i = 0; i < _cluster_size; ++i) {
+        _curDevMemPtr[i] = 0;
+        _memorySizes[i] = 0;
+    }
     _ndevs = ndevs;
 
     return XDMA_SUCCESS;
@@ -294,6 +290,18 @@ xdma_status xdmaGetNumDevices(int *numDevices) {
     return XDMA_SUCCESS;
 }
 
+xdma_status xdmaSetMemorySizes(const uint32_t* sizes) {
+    for (int i = 0; i < (_nnodes == 0 ? _ndevs : _cluster_size); ++i) {
+        _memorySizes[i] = (uint64_t)sizes[i]*1024*1024*1024;
+    }
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaSetMemorySize(int devId, uint32_t size) {
+    _memorySizes[devId] = (uint64_t)size*1024*1024*1024;
+    return XDMA_SUCCESS;
+}
+
 xdma_status xdmaAllocateHost(int devId, void **buffer, xdma_buf_handle *handle, size_t len) {
     //QDMA does not support memory mapped device buffers
     return XDMA_ENOSYS;
@@ -303,7 +311,7 @@ xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
     uint64_t nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
     uint64_t ptr = __atomic_fetch_add(_curDevMemPtr + devId, nlen, __ATOMIC_RELAXED);
     //adjust size so we always get aligned addresses
-    if (ptr + nlen > getDeviceMemSize()) {  //_curDevMemPtr starts at 0
+    if (ptr + nlen > _memorySizes[devId]) {  //_curDevMemPtr starts at 0
         return XDMA_ENOMEM;
     }
 

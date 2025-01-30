@@ -110,7 +110,7 @@ xdma_status xdmaFini() {
     return XDMA_SUCCESS;
 }
 
-xdma_status xdmaGetNumDevices(int *numDevices){
+xdma_status xdmaGetNumDevices(int *numDevices) {
     *numDevices = 1;
     return XDMA_SUCCESS;
 }
@@ -130,6 +130,14 @@ xdma_status _getDeviceAddress(unsigned long dmaBuffer, unsigned long *address) {
         *address = kArg.dmaAddress;
         return XDMA_SUCCESS;
     }
+}
+
+xdma_status xdmaSetMemorySizes(const uint32_t* sizes) {
+    return XDMA_SUCCESS;
+}
+
+xdma_status xdmaSetMemorySize(int devId, uint32_t size) {
+    return XDMA_SUCCESS;
 }
 
 xdma_status xdmaAllocateHost(int devId, void **buffer, xdma_buf_handle *handle, size_t len) {
