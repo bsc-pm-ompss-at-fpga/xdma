@@ -308,7 +308,7 @@ xdma_status xdmaAllocateHost(int devId, void **buffer, xdma_buf_handle *handle, 
 }
 
 xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
-    uint64_t nlen = ((len + (DEV_ALIGN + 1))/DEV_ALIGN)*DEV_ALIGN;
+    uint64_t nlen = (len/DEV_ALIGN + (len%DEV_ALIGN != 0 ? 1 : 0))*DEV_ALIGN;
     uint64_t ptr = __atomic_fetch_add(_curDevMemPtr + devId, nlen, __ATOMIC_RELAXED);
     //adjust size so we always get aligned addresses
     if (ptr + nlen > _memorySizes[devId]) {  //_curDevMemPtr starts at 0
