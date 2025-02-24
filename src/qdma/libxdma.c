@@ -312,6 +312,7 @@ xdma_status xdmaAllocate(int devId, xdma_buf_handle *handle, size_t len) {
     uint64_t ptr = __atomic_fetch_add(_curDevMemPtr + devId, nlen, __ATOMIC_RELAXED);
     //adjust size so we always get aligned addresses
     if (ptr + nlen > _memorySizes[devId]) {  //_curDevMemPtr starts at 0
+        __atomic_fetch_sub(_curDevMemPtr + devId, nlen, __ATOMIC_RELAXED);
         return XDMA_ENOMEM;
     }
 
