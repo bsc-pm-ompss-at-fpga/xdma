@@ -76,6 +76,21 @@ xdma_status xdmaFini();
 xdma_status xdmaGetNumDevices(int *numDevices);
 
 /*!
+ * Set the available board memory for all devices
+ * This function only affects discrete devices with dedicated memory
+ * \param[in] sizes   Array of memory sizes in GB. Length must be equal to the number returned by xdmaGetNumDevices
+ */
+xdma_status xdmaSetMemorySizes(const uint32_t* sizes);
+
+/*!
+ * Set the available board memory for a single device
+ * This function only affects discrete devices with dedicated memory
+ * \param[in] devId   Device id
+ * \param[in] size    Memory size in GB
+ */
+xdma_status xdmaSetMemorySize(int devId, uint32_t size);
+
+/*!
  * Allocate a buffer to be transferred to an xDMA device and accessible from host and device
  * \param[in] devId     Device id
  * \param[out] buffer   Pointer to the allocated buffer
